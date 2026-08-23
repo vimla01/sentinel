@@ -105,14 +105,18 @@ SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. I
 git clone https://github.com/vimla01/sentinel.git
 cd sentinel
 
-terraform -chdir=infra/terraform apply
-kubectl apply -f infra/k8s/
+make apply
+make bootstrap
 
-# Services ready:
-# Grafana:      http://localhost:3000
-# Prometheus:   http://localhost:9090
-# Diagnosis API: http://localhost:8000/docs
+# Build and load the Phase 0 image into Kind
+docker build -t sentinel/hello:dev services/hello
+kind load docker-image sentinel/hello:dev --name sentinel
+
+# Check GitOps reconciliation (inspection only)
+kubectl -n argocd get application sentinel
 ```
+
+Terraform creates the local Kind cluster. The bootstrap script installs ArgoCD and registers the root Application; all Kubernetes resources after bootstrap are managed through Git and reconciled by ArgoCD.
 
 ### Simulate an Incident
 
@@ -134,6 +138,7 @@ Response includes the predicted risk score, root-cause diagnosis, matched runboo
 ```
 sentinel/
 ├── services/
+│   ├── hello/              # Phase 0 health-check service
 │   ├── predictor/         # Anomaly detection model + inference service
 │   ├── diagnosis-agent/   # Ollama + RAG diagnosis service
 │   ├── remediator/        # K8s API actions + Argo Workflows
@@ -172,8 +177,10 @@ pylint services/
 
 ### Development
 ```bash
-kind create cluster
-kubectl apply -f infra/k8s/
+make test
+make lint
+make apply
+make bootstrap
 ```
 
 ### Production
