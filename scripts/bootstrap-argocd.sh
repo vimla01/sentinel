@@ -10,7 +10,7 @@ command -v kind >/dev/null || { echo "kind is required" >&2; exit 1; }
 
 kubectl config use-context "kind-${CLUSTER_NAME}"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -n argocd -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
+kubectl apply -n argocd --server-side --force-conflicts -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 kubectl wait --for=condition=available --timeout=180s deployment/argocd-server -n argocd
 kubectl apply -f "${REPO_ROOT}/infra/argocd/project.yaml"
 kubectl apply -f "${REPO_ROOT}/infra/argocd/application.yaml"
