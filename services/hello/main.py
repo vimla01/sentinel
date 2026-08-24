@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
-app = FastAPI(title="SENTINEL hello service", version="0.1.0")
+app = FastAPI(title="SENTINEL Demo API", version="0.1.0")
 
 Instrumentator().instrument(app).expose(app)
 
@@ -13,4 +13,7 @@ def healthz() -> dict[str, str]:
 
 @app.get("/")
 def hello() -> dict[str, str]:
-    return {"service": "sentinel-hello", "message": "hello from SENTINEL"}
+    return {
+        "service": "demo-api",
+        "message": "hello from SENTINEL",
+    }
