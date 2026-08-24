@@ -5,3 +5,8 @@ resources:
   - rbac.yaml
   - network-policies.yaml
   - apps/hello
+  - apps/demo-api
+  - apps/prometheus
+  - apps/loki
+  - apps/promtail
+  - apps/grafana
