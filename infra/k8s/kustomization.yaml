@@ -6,6 +6,7 @@ resources:
   - network-policies.yaml
   - apps/hello
   - apps/demo-api
+  - apps/predictor
   - apps/prometheus
   - apps/loki
   - apps/promtail
