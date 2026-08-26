@@ -1,31 +1,46 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: demo-api
+  name: predictor
   labels:
-    app.kubernetes.io/name: demo-api
+    app.kubernetes.io/name: predictor
     app.kubernetes.io/part-of: sentinel
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: demo-api
+      app.kubernetes.io/name: predictor
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: demo-api
+        app.kubernetes.io/name: predictor
         app.kubernetes.io/part-of: sentinel
     spec:
       serviceAccountName: sentinel-workload
       securityContext:
         runAsNonRoot: true
       containers:
-        - name: demo-api
-          image: sentinel/demo-api:dev
+        - name: predictor
+          image: sentinel/predictor:dev
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8080
+          env:
+            - name: PROMETHEUS_URL
+              value: http://prometheus:9090
+            - name: TARGET_JOB
+              value: demo-api
+            - name: POLL_INTERVAL_SECONDS
+              value: "15"
+            - name: WINDOW_SIZE
+              value: "20"
+            - name: MIN_SAMPLES
+              value: "8"
+            - name: THRESHOLD_SIGMA
+              value: "3.0"
+            - name: ALERT_COOLDOWN_SECONDS
+              value: "120"
           readinessProbe:
             httpGet:
               path: /healthz
@@ -39,5 +54,5 @@ spec:
               cpu: 10m
               memory: 32Mi
             limits:
-              cpu: 250m
-              memory: 256Mi
+              cpu: 100m
+              memory: 128Mi
