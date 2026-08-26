@@ -108,9 +108,11 @@ cd sentinel
 make apply
 make bootstrap
 
-# Build and load the Phase 0 image into Kind
-docker build -t sentinel/hello:dev services/hello
+# Build and load the service images into Kind
+make build
 kind load docker-image sentinel/hello:dev --name sentinel
+kind load docker-image sentinel/demo-api:dev --name sentinel
+kind load docker-image sentinel/predictor:dev --name sentinel
 
 # Check GitOps reconciliation (inspection only)
 kubectl -n argocd get application sentinel
@@ -121,17 +123,30 @@ Terraform creates the local Kind cluster. The bootstrap script installs ArgoCD a
 ### Simulate an Incident
 
 ```bash
-# Trigger a chaos test to watch the full loop run
-python scripts/chaos/inject_memory_leak.py --service demo-api
+kubectl -n sentinel port-forward svc/demo-api 8080:8080 &
+kubectl -n sentinel port-forward svc/predictor 8000:8080 &
+
+# Watch the predictor's live risk score in one terminal...
+python scripts/chaos/watch.py --predictor-url http://localhost:8000
+
+# ...while injecting a slow memory leak in another
+python scripts/chaos/inject_memory_leak.py --base-url http://localhost:8080 --chunk-mb 30 --steps 10
 ```
 
-### Check an Incident's Diagnosis
+See [scripts/chaos/README.md](./scripts/chaos/README.md) for the full set of
+injectable failure modes (CPU spike, latency, error rate).
+
+### Check the Predictor's Risk Assessment
 
 ```bash
-curl http://localhost:8000/api/v1/incidents/latest
+curl http://localhost:8000/risk
+curl http://localhost:8000/alerts
 ```
 
-Response includes the predicted risk score, root-cause diagnosis, matched runbook, and remediation action taken.
+`/risk` returns the current rolling mean/std-dev z-score per metric
+(CPU, memory, latency, error rate) and an overall risk score. `/alerts`
+returns the internal alert history fired when a metric's z-score crosses
+`THRESHOLD_SIGMA` - not yet wired to diagnosis/remediation.
 
 ## Project Structure
 
@@ -139,10 +154,11 @@ Response includes the predicted risk score, root-cause diagnosis, matched runboo
 sentinel/
 ├── services/
 │   ├── hello/              # Phase 0 health-check service
-│   ├── predictor/         # Anomaly detection model + inference service
-│   ├── diagnosis-agent/   # Ollama + RAG diagnosis service
-│   ├── remediator/        # K8s API actions + Argo Workflows
-│   └── api/               # FastAPI gateway, incident history
+│   ├── demo_api/           # Chaos-injectable target service (/debug/*)
+│   ├── predictor/          # Rolling-threshold anomaly detection + inference service
+│   ├── diagnosis-agent/    # Ollama + RAG diagnosis service
+│   ├── remediator/         # K8s API actions + Argo Workflows
+│   └── api/                # FastAPI gateway, incident history
 ├── runbooks/               # Markdown runbooks used for RAG grounding
 ├── infra/
 │   ├── terraform/          # Cluster + infra provisioning
@@ -162,8 +178,9 @@ python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Run the diagnosis agent locally
-uvicorn services.diagnosis-agent.main:app --reload
+# Run demo-api and the predictor locally
+uvicorn services.demo_api.main:app --port 8080 --reload
+PROMETHEUS_URL=http://localhost:9090 uvicorn services.predictor.main:app --port 8000 --reload
 
 # Run tests
 pytest tests/ -v --cov=services
