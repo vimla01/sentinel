@@ -9,9 +9,6 @@ permissions:
   contents: read
   packages: write
 
-env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}/hello
-
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -30,6 +27,18 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - name: hello
+            context: services/hello
+            dockerfile: services/hello/Dockerfile
+          - name: demo-api
+            context: services/demo_api
+            dockerfile: services/demo_api/Dockerfile
+          - name: predictor
+            context: .
+            dockerfile: services/predictor/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
@@ -40,6 +49,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: services/hello
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.name }}:${{ github.sha }}
