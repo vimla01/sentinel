@@ -69,7 +69,13 @@ class MetricState:
     last_value: float | None = None
     last_z_score: float = 0.0
     alerting: bool = False
-    last_alert_at: float = 0.0
+    # Use -inf (not 0.0) as the "never fired" sentinel. time.monotonic() is
+    # measured from an arbitrary reference point (often close to boot/process
+    # start), not from epoch zero — so comparing against 0.0 can make
+    # (now - last_alert_at) smaller than the cooldown window on some machines,
+    # silently blocking the very first alert. -inf guarantees the first
+    # cooldown check always passes.
+    last_alert_at: float = field(default=float("-inf"))
 
 
 class RiskMonitor:
