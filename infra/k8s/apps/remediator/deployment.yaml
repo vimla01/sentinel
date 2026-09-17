@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remediator
+  labels:
+    app.kubernetes.io/name: remediator
+    app.kubernetes.io/part-of: sentinel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: remediator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: remediator
+        app.kubernetes.io/part-of: sentinel
+    spec:
+      serviceAccountName: remediator
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: remediator
+          image: sentinel/remediator:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DIAGNOSIS_AGENT_URL
+              value: http://diagnosis-agent:8080
+            - name: K8S_NAMESPACE
+              value: sentinel
+            - name: TARGET_DEPLOYMENT
+              value: demo-api
+            - name: ARGOCD_URL
+              value: http://argocd-server.argocd:80
+            - name: ARGOCD_APP
+              value: sentinel
+            - name: POLL_INTERVAL_SECONDS
+              value: "15"
+            - name: SLACK_CHANNEL
+              value: "#sentinel-incidents"
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: remediator-slack
+                  key: bot-token
+                  optional: true
+            - name: SLACK_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: remediator-slack
+                  key: signing-secret
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
