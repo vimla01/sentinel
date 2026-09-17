@@ -31,6 +31,8 @@ class Diagnosis:
     raw_response: str
     logs: list[str]
     deploys: list[dict]
+    safe_actions: list[str] = field(default_factory=list)
+    approval_required: bool = True
     created_at: float = field(default_factory=time.time)
 
 
@@ -104,6 +106,8 @@ class DiagnosisEngine:
             raw_response=raw_response,
             logs=logs,
             deploys=deploys,
+            safe_actions=runbook.safe_actions,
+            approval_required=runbook.approval_required,
         )
         self._record(diagnosis)
         return diagnosis

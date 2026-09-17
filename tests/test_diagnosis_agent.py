@@ -108,6 +108,8 @@ async def test_diagnosis_engine_withholds_diagnosis_when_no_runbook_matches() ->
     assert diagnosis.grounded is False
     assert diagnosis.runbook_id is None
     assert "memory_bytes" in diagnosis.root_cause
+    assert diagnosis.safe_actions == []
+    assert diagnosis.approval_required is True
     assert engine.diagnoses == [diagnosis]
 
 
@@ -127,8 +129,15 @@ async def test_diagnosis_engine_cites_matched_runbook() -> None:
             },
         )
 
+    leak_logs = {
+        "data": {
+            "result": [
+                {"values": [["1700000000000000000", "memory grows steadily every interval, leak unbounded"]]}
+            ]
+        }
+    }
     loki = LokiClient("http://loki:3100")
-    loki._client = _mock_transport("http://loki:3100", lambda r: httpx.Response(200, json={"data": {"result": []}}))
+    loki._client = _mock_transport("http://loki:3100", lambda r: httpx.Response(200, json=leak_logs))
     deploys = DeployHistoryClient("http://argocd:80")
     deploys._client = _mock_transport("http://argocd:80", lambda r: httpx.Response(200, json={"status": {"history": []}}))
     ollama = OllamaClient("http://ollama:11434", "llama3")
@@ -152,6 +161,8 @@ async def test_diagnosis_engine_cites_matched_runbook() -> None:
     assert diagnosis.runbook_id == "memory-leak-unbounded-growth"
     assert "steadily" in diagnosis.root_cause
     assert diagnosis.recommended_action == "restart the affected pod"
+    assert diagnosis.safe_actions == ["restart the affected pod"]
+    assert diagnosis.approval_required is False
 
 
 @pytest.mark.anyio
