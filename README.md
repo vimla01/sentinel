@@ -113,6 +113,7 @@ make build
 kind load docker-image sentinel/hello:dev --name sentinel
 kind load docker-image sentinel/demo-api:dev --name sentinel
 kind load docker-image sentinel/predictor:dev --name sentinel
+kind load docker-image sentinel/diagnosis-agent:dev --name sentinel
 
 # Check GitOps reconciliation (inspection only)
 kubectl -n argocd get application sentinel
@@ -146,7 +147,25 @@ curl http://localhost:8000/alerts
 `/risk` returns the current rolling mean/std-dev z-score per metric
 (CPU, memory, latency, error rate) and an overall risk score. `/alerts`
 returns the internal alert history fired when a metric's z-score crosses
-`THRESHOLD_SIGMA` - not yet wired to diagnosis/remediation.
+`THRESHOLD_SIGMA`.
+
+### Get a Grounded Diagnosis
+
+```bash
+kubectl -n sentinel port-forward svc/diagnosis-agent 8001:8080 &
+
+curl http://localhost:8001/runbooks
+curl http://localhost:8001/diagnoses
+```
+
+diagnosis-agent polls the predictor's `/alerts` in the background. For each
+new alert it pulls recent logs (Loki) and deploy history (ArgoCD), retrieves
+the runbook covering that metric from [runbooks/](./runbooks), and prompts
+Ollama for a root cause and recommended action grounded in that runbook. If
+no runbook covers the metric, it records the diagnosis as ungrounded instead
+of asking the LLM to guess. See
+[docs/API.md](./docs/API.md#diagnosis-agent) for the full endpoint list,
+including `POST /diagnose` for triggering a diagnosis on demand.
 
 ## Project Structure
 

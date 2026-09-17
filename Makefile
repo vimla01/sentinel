@@ -32,3 +32,4 @@ build:
 	docker build -t sentinel/hello:dev services/hello
 	docker build -t sentinel/demo-api:dev services/demo_api
 	docker build -t sentinel/predictor:dev -f services/predictor/Dockerfile .
+	docker build -t sentinel/diagnosis-agent:dev -f services/diagnosis_agent/Dockerfile .
