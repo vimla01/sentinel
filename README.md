@@ -67,7 +67,7 @@ SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. I
                               ┌────────────┴────────────┐
                               ▼                         ▼
                      Safe fix → auto-remediate   Risky fix → Slack approval
-                     (K8s API / Argo Workflows)   (human clicks Approve/Deny)
+                     (K8s API / ArgoCD rollback)   (human clicks Approve/Deny)
                               │                         │
                               └────────────┬────────────┘
                                            ▼
@@ -94,7 +94,7 @@ SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. I
 | **Dashboards** | Grafana |
 | **Anomaly detection** | scikit-learn / Prophet |
 | **LLM diagnosis agent** | Ollama + Llama 3 (RAG over runbooks) |
-| **Remediation** | Argo Workflows / Kubernetes API |
+| **Remediation** | Kubernetes API (restart, scale) / ArgoCD rollback API |
 | **Human approval** | Slack bot with interactive buttons |
 
 ## Quick Start
@@ -114,6 +114,7 @@ kind load docker-image sentinel/hello:dev --name sentinel
 kind load docker-image sentinel/demo-api:dev --name sentinel
 kind load docker-image sentinel/predictor:dev --name sentinel
 kind load docker-image sentinel/diagnosis-agent:dev --name sentinel
+kind load docker-image sentinel/remediator:dev --name sentinel
 
 # Check GitOps reconciliation (inspection only)
 kubectl -n argocd get application sentinel
@@ -167,6 +168,23 @@ of asking the LLM to guess. See
 [docs/API.md](./docs/API.md#diagnosis-agent) for the full endpoint list,
 including `POST /diagnose` for triggering a diagnosis on demand.
 
+### Approve or Deny a Remediation
+
+```bash
+kubectl -n sentinel port-forward svc/remediator 8002:8080 &
+
+curl http://localhost:8002/remediations
+```
+
+remediator polls diagnosis-agent's `/diagnoses` in the background. A
+diagnosis whose runbook marks `approval_required: false` and recommends
+restart, scale, or rollback auto-executes immediately via the Kubernetes API
+(restart/scale) or ArgoCD's rollback API. Anything else posts a message with
+Approve/Deny buttons to Slack and waits - nothing runs until a human clicks
+one. See [docs/API.md](./docs/API.md#remediator) for the full endpoint list
+and [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md#slack-approvals) for the
+one-time Slack app setup this requires.
+
 ## Project Structure
 
 ```
@@ -176,7 +194,7 @@ sentinel/
 │   ├── demo_api/           # Chaos-injectable target service (/debug/*)
 │   ├── predictor/          # Rolling-threshold anomaly detection + inference service
 │   ├── diagnosis-agent/    # Ollama + RAG diagnosis service
-│   ├── remediator/         # K8s API actions + Argo Workflows
+│   ├── remediator/         # K8s API (restart/scale) + ArgoCD rollback, Slack approval
 │   └── api/                # FastAPI gateway, incident history
 ├── runbooks/               # Markdown runbooks used for RAG grounding
 ├── infra/
