@@ -42,6 +42,9 @@ jobs:
           - name: diagnosis-agent
             context: .
             dockerfile: services/diagnosis_agent/Dockerfile
+          - name: remediator
+            context: .
+            dockerfile: services/remediator/Dockerfile
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3

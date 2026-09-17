@@ -31,3 +31,26 @@ kubectl -n sentinel exec deploy/ollama -- ollama pull llama3
 
 `diagnosis-agent`'s `OLLAMA_MODEL` env var (default `llama3`) must match
 whatever model was pulled.
+
+## Slack approvals
+
+remediator only auto-executes restart/scale/rollback for diagnoses whose
+runbook explicitly marks `approval_required: false` - everything else waits
+on a Slack Approve/Deny click, so a working Slack app is required for any
+non-auto remediation to ever complete. Create a Slack app with a bot token
+(`chat:write` scope) and Interactivity enabled, pointing its Request URL at
+this cluster's `remediator` service (`/slack/interactions` - requires the
+service to be reachable from Slack's servers, e.g. via an Ingress and a
+public DNS name; this repo does not provision one). Then create the secret
+remediator reads its credentials from:
+
+```bash
+kubectl -n sentinel create secret generic remediator-slack \
+  --from-literal=bot-token=xoxb-... \
+  --from-literal=signing-secret=...
+```
+
+`remediator`'s `SLACK_CHANNEL` env var (default `#sentinel-incidents`) must
+be a channel the bot has been invited to. Without this secret, remediator
+still runs and still auto-executes safe actions - only the approval path is
+unavailable, and it logs the failure to post rather than crashing.
