@@ -13,3 +13,4 @@ resources:
   - apps/grafana
   - apps/ollama
   - apps/diagnosis-agent
+  - apps/remediator

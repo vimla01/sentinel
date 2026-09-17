@@ -24,3 +24,37 @@ roleRef:
   kind: Role
   name: sentinel-workload
   apiGroup: rbac.authorization.k8s.io
+---
+# remediator is the only workload that ever writes to the cluster (restart/scale a
+# Deployment), so it gets its own service account rather than sharing
+# sentinel-workload's (intentionally empty) role - a compromised diagnosis-agent or
+# demo-api pod should never inherit write access to Deployments.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: remediator
+  namespace: sentinel
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: remediator
+  namespace: sentinel
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: remediator
+  namespace: sentinel
+subjects:
+  - kind: ServiceAccount
+    name: remediator
+    namespace: sentinel
+roleRef:
+  kind: Role
+  name: remediator
+  apiGroup: rbac.authorization.k8s.io
