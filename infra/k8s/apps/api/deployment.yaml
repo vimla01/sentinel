@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: sentinel
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+        app.kubernetes.io/part-of: sentinel
+    spec:
+      serviceAccountName: sentinel-workload
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 10001
+      containers:
+        - name: api
+          image: sentinel/api:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PREDICTOR_URL
+              value: http://predictor:8080
+            - name: DIAGNOSIS_AGENT_URL
+              value: http://diagnosis-agent:8080
+            - name: REMEDIATOR_URL
+              value: http://remediator:8080
+            - name: POLL_INTERVAL_SECONDS
+              value: "15"
+            - name: DB_PATH
+              value: /data/incidents.db
+            - name: MAX_HISTORY
+              value: "50"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: api-data
