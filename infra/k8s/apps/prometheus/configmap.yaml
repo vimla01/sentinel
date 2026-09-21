@@ -15,3 +15,15 @@ data:
         metrics_path: /metrics
         static_configs:
           - targets: ['predictor:8080']
+      - job_name: 'diagnosis-agent'
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['diagnosis-agent:8080']
+      - job_name: 'remediator'
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['remediator:8080']
+      - job_name: 'api'
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['api:8080']

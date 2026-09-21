@@ -14,3 +14,4 @@ resources:
   - apps/ollama
   - apps/diagnosis-agent
   - apps/remediator
+  - apps/api
