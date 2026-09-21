@@ -34,3 +34,4 @@ build:
 	docker build -t sentinel/predictor:dev -f services/predictor/Dockerfile .
 	docker build -t sentinel/diagnosis-agent:dev -f services/diagnosis_agent/Dockerfile .
 	docker build -t sentinel/remediator:dev -f services/remediator/Dockerfile .
+	docker build -t sentinel/api:dev -f services/api/Dockerfile .

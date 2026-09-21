@@ -54,3 +54,17 @@ kubectl -n sentinel create secret generic remediator-slack \
 be a channel the bot has been invited to. Without this secret, remediator
 still runs and still auto-executes safe actions - only the approval path is
 unavailable, and it logs the failure to post rather than crashing.
+
+## Incident history persistence
+
+`api` is the one service in this platform with durable state: it persists
+the correlated incident timeline to SQLite on a `PersistentVolumeClaim`
+(`api-data`, `infra/k8s/apps/api/pvc.yaml`) rather than keeping it in
+memory like predictor/diagnosis-agent/remediator do. Kind's default
+`local-path-provisioner` binds the PVC automatically - no extra setup
+needed - but that storage lives on the Kind node's container filesystem, so
+incident history is lost on `kind delete cluster` along with everything
+else, not just on a pod restart. If the `api` pod can't write to its mounted
+path for any reason, it falls back to an in-memory store and logs a
+warning rather than crashing - `curl .../incidents/latest` still works in
+that case, it just won't survive a restart.

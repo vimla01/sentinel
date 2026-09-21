@@ -82,3 +82,38 @@ policy. Everything else - including any diagnosis whose runbook requires
 approval, regardless of what its action text says - posts a Slack message
 with Approve/Deny buttons and waits; nothing executes until a human clicks
 one. Also exposes `/metrics` (Prometheus format).
+
+## api
+
+The gateway that ties predictor, diagnosis-agent, and remediator into one
+traceable incident record.
+
+- `GET /healthz` readiness health status.
+- `GET /api/v1/incidents/latest` the most recently updated incident. 404 if
+  none have been recorded yet.
+- `GET /api/v1/incidents?limit=N` incident history, most recently updated
+  first (`limit` capped at `MAX_HISTORY`).
+- `GET /api/v1/incidents/{incident_id}` a single incident by id (the
+  `{metric}:{fired_at}` correlation key shared by predictor's alerts,
+  diagnosis-agent's diagnoses, and remediator's remediations).
+- `POST /api/v1/incidents/sync` runs one poll cycle on demand - useful for
+  testing without waiting for `POLL_INTERVAL_SECONDS`.
+
+Each incident record has a `stage` - `predicted`, `diagnosed`,
+`awaiting_approval`, `denied`, `remediated`, or `failed` - derived from
+which of the three upstream services have reported on it so far, plus the
+raw fields from each stage (predicted value/mean/stddev/z-score, diagnosed
+root cause/recommended action/runbook, and remediation category/status/
+result) with their timestamps.
+
+In the background, `api` polls predictor's `/alerts`, diagnosis-agent's
+`/diagnoses`, and remediator's `/remediations` every `POLL_INTERVAL_SECONDS`
+and upserts each into a SQLite-backed store keyed by `(metric, fired_at)` -
+unlike the other three services' in-memory history, this is the one
+deliberately persisted record in the platform, since the entire point of
+this service is a durable, auditable lifecycle rather than another
+ephemeral cache. It also exposes two Prometheus gauges for Grafana's
+"Incident Timeline" dashboard: `sentinel_incident_stage_level` (one series
+per tracked incident, 0-5 encoding its current stage) and
+`sentinel_incidents_by_stage` (current count per stage). Also exposes
+`/metrics` (Prometheus format).

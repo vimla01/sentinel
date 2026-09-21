@@ -96,6 +96,7 @@ SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. I
 | **LLM diagnosis agent** | Ollama + Llama 3 (RAG over runbooks) |
 | **Remediation** | Kubernetes API (restart, scale) / ArgoCD rollback API |
 | **Human approval** | Slack bot with interactive buttons |
+| **Incident timeline** | SQLite-backed gateway (`services/api`) + Prometheus gauges |
 
 ## Quick Start
 
@@ -115,6 +116,7 @@ kind load docker-image sentinel/demo-api:dev --name sentinel
 kind load docker-image sentinel/predictor:dev --name sentinel
 kind load docker-image sentinel/diagnosis-agent:dev --name sentinel
 kind load docker-image sentinel/remediator:dev --name sentinel
+kind load docker-image sentinel/api:dev --name sentinel
 
 # Check GitOps reconciliation (inspection only)
 kubectl -n argocd get application sentinel
@@ -185,6 +187,26 @@ one. See [docs/API.md](./docs/API.md#remediator) for the full endpoint list
 and [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md#slack-approvals) for the
 one-time Slack app setup this requires.
 
+### Check the Incident Timeline
+
+```bash
+kubectl -n sentinel port-forward svc/api 8003:8080 &
+
+curl http://localhost:8003/api/v1/incidents/latest
+curl http://localhost:8003/api/v1/incidents
+```
+
+`api` polls predictor, diagnosis-agent, and remediator in the background and
+correlates their independent, ephemeral histories - keyed by the same
+`(metric, fired_at)` pair all three already use - into one persisted
+incident per alert: `predicted → diagnosed → awaiting_approval → (denied |
+remediated | failed)`, with a timestamp for each stage it's reached so far.
+This is the one durable record in the platform; every other service's
+history resets on restart. See [docs/API.md](./docs/API.md#api) for the
+full endpoint list, and the "Incident Timeline" Grafana dashboard
+(`dashboards/incident-timeline.json`) for the visual, per-incident view of
+the same data.
+
 ## Project Structure
 
 ```
@@ -195,7 +217,7 @@ sentinel/
 │   ├── predictor/          # Rolling-threshold anomaly detection + inference service
 │   ├── diagnosis-agent/    # Ollama + RAG diagnosis service
 │   ├── remediator/         # K8s API (restart/scale) + ArgoCD rollback, Slack approval
-│   └── api/                # FastAPI gateway, incident history
+│   └── api/                # Gateway correlating predictor/diagnosis-agent/remediator into a persisted incident timeline
 ├── runbooks/               # Markdown runbooks used for RAG grounding
 ├── infra/
 │   ├── terraform/          # Cluster + infra provisioning
