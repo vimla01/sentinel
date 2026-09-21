@@ -4,5 +4,6 @@ namespace: sentinel
 resources:
   - datasource-config.yaml
   - dashboard-config.yaml
+  - dashboard-provider-config.yaml
   - deployment.yaml
   - service.yaml

@@ -30,3 +30,42 @@ data:
       "schemaVersion": 16,
       "version": 1
     }
+  incident-timeline.json: |
+    {
+      "annotations": {"list": []},
+      "panels": [
+        {
+          "type": "state-timeline",
+          "title": "Incident Timeline",
+          "description": "One row per tracked incident (id shown in the legend), colored by lifecycle stage. Fed by the api gateway's sentinel_incident_stage_level gauge.",
+          "targets": [
+            {"expr": "sentinel_incident_stage_level", "legendFormat": "{{metric}} ({{incident_id}})"}
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {"type": "value", "options": {"0": {"text": "Predicted", "color": "blue"}}},
+                {"type": "value", "options": {"1": {"text": "Diagnosed", "color": "yellow"}}},
+                {"type": "value", "options": {"2": {"text": "Awaiting Approval", "color": "orange"}}},
+                {"type": "value", "options": {"3": {"text": "Denied", "color": "red"}}},
+                {"type": "value", "options": {"4": {"text": "Remediated", "color": "green"}}},
+                {"type": "value", "options": {"5": {"text": "Failed", "color": "dark-red"}}}
+              ]
+            }
+          },
+          "gridPos": {"x": 0, "y": 0, "w": 24, "h": 10}
+        },
+        {
+          "type": "bargauge",
+          "title": "Incidents by Stage",
+          "description": "Current count of tracked incidents in each lifecycle stage.",
+          "targets": [
+            {"expr": "sentinel_incidents_by_stage", "legendFormat": "{{stage}}"}
+          ],
+          "gridPos": {"x": 0, "y": 10, "w": 24, "h": 6}
+        }
+      ],
+      "title": "Incident Timeline",
+      "schemaVersion": 16,
+      "version": 1
+    }
