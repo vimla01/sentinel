@@ -27,6 +27,8 @@ spec:
               mountPath: /etc/loki
             - name: storage
               mountPath: /loki
+            - name: storage
+              mountPath: /wal
       volumes:
         - name: config
           configMap:
