@@ -6,7 +6,7 @@ from dataclasses import dataclass
 class Settings:
     predictor_url: str = os.environ.get("PREDICTOR_URL", "http://predictor:8080")
     ollama_url: str = os.environ.get("OLLAMA_URL", "http://ollama:11434")
-    ollama_model: str = os.environ.get("OLLAMA_MODEL", "llama3")
+    ollama_model: str = "tinyllama"
     loki_url: str = os.environ.get("LOKI_URL", "http://loki:3100")
     argocd_url: str = os.environ.get("ARGOCD_URL", "http://argocd-server.argocd:80")
     argocd_app: str = os.environ.get("ARGOCD_APP", "sentinel")

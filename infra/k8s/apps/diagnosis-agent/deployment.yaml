@@ -32,7 +32,7 @@ spec:
             - name: OLLAMA_URL
               value: http://ollama:11434
             - name: OLLAMA_MODEL
-              value: llama3
+              value: tinyllama
             - name: LOKI_URL
               value: http://loki:3100
             - name: ARGOCD_URL
