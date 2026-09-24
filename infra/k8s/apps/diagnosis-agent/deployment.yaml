@@ -36,7 +36,7 @@ spec:
             - name: LOKI_URL
               value: http://loki:3100
             - name: ARGOCD_URL
-              value: http://argocd-server.argocd:80
+              value: https://argocd-server.argocd:443
             - name: ARGOCD_APP
               value: sentinel
             - name: TARGET_JOB

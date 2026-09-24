@@ -1,6 +1,7 @@
 import datetime
 
 import httpx
+import os
 
 
 class DeployHistoryClient:
@@ -9,7 +10,12 @@ class DeployHistoryClient:
     was actually deployed and when (see infra/argocd/application.yaml)."""
 
     def __init__(self, base_url: str, timeout: float = 5.0) -> None:
-        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
+        # Use Kubernetes service account CA for TLS verification when connecting to ArgoCD over HTTPS
+        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        verify_path = ca_path if os.path.exists(ca_path) else False
+        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout, verify=verify_path)
+
+
 
     async def recent_deploys(self, app_name: str, since_epoch_seconds: float) -> list[dict]:
         response = await self._client.get(f"/api/v1/applications/{app_name}")
