@@ -4,7 +4,9 @@ from dataclasses import dataclass
 
 @dataclass
 class Settings:
-    diagnosis_agent_url: str = os.environ.get("DIAGNOSIS_AGENT_URL", "http://diagnosis-agent:8080")
+    diagnosis_agent_url: str = os.environ.get(
+        "DIAGNOSIS_AGENT_URL", "http://diagnosis-agent:8080"
+    )
     poll_interval_seconds: float = float(os.environ.get("POLL_INTERVAL_SECONDS", "15"))
     k8s_namespace: str = os.environ.get("K8S_NAMESPACE", "sentinel")
     target_deployment: str = os.environ.get("TARGET_DEPLOYMENT", "demo-api")

@@ -17,9 +17,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python -m compileall -q services tests
-      - run: python -m pytest tests -q
+      - run: pip install -r requirements.txt pytest-cov black pylint
+      - run: python -m black --check services/
+      - run: python -m pylint services/
+      - run: python -m pytest tests -q --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
   image:
     needs: verify

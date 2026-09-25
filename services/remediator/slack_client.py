@@ -7,7 +7,9 @@ import httpx
 _REPLAY_WINDOW_SECONDS = 300
 
 
-def verify_signature(signing_secret: str, timestamp: str, body: str, signature: str) -> bool:
+def verify_signature(
+    signing_secret: str, timestamp: str, body: str, signature: str
+) -> bool:
     """Verifies Slack's request signature (see Slack's "Verifying requests
     from Slack" docs): HMAC-SHA256 over `v0:{timestamp}:{body}` keyed by the
     app's signing secret, with a 5-minute replay window on the timestamp."""
@@ -20,7 +22,10 @@ def verify_signature(signing_secret: str, timestamp: str, body: str, signature: 
     if abs(time.time() - request_time) > _REPLAY_WINDOW_SECONDS:
         return False
     basestring = f"v0:{timestamp}:{body}".encode()
-    computed = "v0=" + hmac.new(signing_secret.encode(), basestring, hashlib.sha256).hexdigest()
+    computed = (
+        "v0="
+        + hmac.new(signing_secret.encode(), basestring, hashlib.sha256).hexdigest()
+    )
     return hmac.compare_digest(computed, signature)
 
 

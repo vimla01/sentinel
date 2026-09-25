@@ -86,14 +86,18 @@ class RemediationEngine:
             await self._request_approval(remediation)
         return remediation
 
-    async def resolve(self, remediation_id: str, approved: bool, actor: str) -> Remediation:
+    async def resolve(
+        self, remediation_id: str, approved: bool, actor: str
+    ) -> Remediation:
         remediation = self._remediations[remediation_id]
         if remediation.status != "awaiting_approval":
             return remediation
 
         if approved:
             await self._execute(remediation)
-            outcome = f"Approved by {actor} — {remediation.status}: {remediation.result}"
+            outcome = (
+                f"Approved by {actor} — {remediation.status}: {remediation.result}"
+            )
         else:
             remediation.status = "denied"
             remediation.result = f"denied by {actor}"
@@ -103,7 +107,9 @@ class RemediationEngine:
 
         if remediation.slack_channel and remediation.slack_ts:
             try:
-                await self._slack.update_message(remediation.slack_channel, remediation.slack_ts, outcome)
+                await self._slack.update_message(
+                    remediation.slack_channel, remediation.slack_ts, outcome
+                )
             except (httpx.HTTPError, RuntimeError):
                 logger.exception("failed to update slack message id=%s", remediation.id)
         return remediation
@@ -112,9 +118,12 @@ class RemediationEngine:
         try:
             if remediation.category == "restart":
                 await self._k8s.restart_deployment(self._target_deployment)
+
                 remediation.result = f"restarted deployment/{self._target_deployment}"
             elif remediation.category == "scale":
-                await self._k8s.scale_deployment(self._target_deployment, self._scale_step, self._max_replicas)
+                await self._k8s.scale_deployment(
+                    self._target_deployment, self._scale_step, self._max_replicas
+                )
                 remediation.result = f"scaled deployment/{self._target_deployment}"
             elif remediation.category == "rollback":
                 await self._argocd.rollback(self._argocd_app)
@@ -146,11 +155,15 @@ class RemediationEngine:
             f"recommended action: {remediation.action_text}"
         )
         try:
-            response = await self._slack.post_approval(self._slack_channel, remediation.id, text)
+            response = await self._slack.post_approval(
+                self._slack_channel, remediation.id, text
+            )
             remediation.slack_channel = response.get("channel", self._slack_channel)
             remediation.slack_ts = response.get("ts", "")
         except (httpx.HTTPError, RuntimeError):
-            logger.exception("failed to post slack approval request id=%s", remediation.id)
+            logger.exception(
+                "failed to post slack approval request id=%s", remediation.id
+            )
         logger.info(
             "REMEDIATION id=%s category=%s auto=False status=awaiting_approval alert=%s",
             remediation.id,

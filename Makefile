@@ -23,10 +23,17 @@ destroy:
 	terraform -chdir=infra/terraform destroy -var="cluster_name=$(CLUSTER_NAME)"
 
 test:
-	python -m pytest tests -q
+	python -m pytest tests -q --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
 lint:
-	python -m compileall -q services tests
+	python -m black --check services/
+	python -m pylint services/
+
+test-integration:
+	python -m pytest tests/test_integration_e2e.py -v
+
+test-load:
+	python scripts/load_test_diagnosis.py
 
 build:
 	docker build -t sentinel/hello:dev services/hello

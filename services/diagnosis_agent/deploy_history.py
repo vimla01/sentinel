@@ -22,11 +22,13 @@ class DeployHistoryClient:
         # - Mounting ArgoCD's CA certificate bundle
         # - Using verify=/path/to/ca.crt instead of verify=False
         # - Configuring ArgoCD with a proper CA-signed certificate
-        self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout, verify=False)
+        self._client = httpx.AsyncClient(
+            base_url=base_url, timeout=timeout, verify=False
+        )
 
-
-
-    async def recent_deploys(self, app_name: str, since_epoch_seconds: float) -> list[dict]:
+    async def recent_deploys(
+        self, app_name: str, since_epoch_seconds: float
+    ) -> list[dict]:
         response = await self._client.get(f"/api/v1/applications/{app_name}")
         response.raise_for_status()
         history = response.json().get("status", {}).get("history", [])
@@ -35,7 +37,9 @@ class DeployHistoryClient:
             deployed_at = entry.get("deployedAt")
             timestamp = _parse_iso8601(deployed_at) if deployed_at else None
             if timestamp is not None and timestamp >= since_epoch_seconds:
-                recent.append({"revision": entry.get("revision"), "deployed_at": deployed_at})
+                recent.append(
+                    {"revision": entry.get("revision"), "deployed_at": deployed_at}
+                )
         return recent
 
     async def aclose(self) -> None:

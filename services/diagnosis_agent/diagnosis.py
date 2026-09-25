@@ -76,7 +76,9 @@ class DiagnosisEngine:
         metric = alert.get("metric", "")
         logs = await self._safe_logs()
         deploys = await self._safe_deploys()
-        context = " ".join(logs) + " " + " ".join(d.get("revision") or "" for d in deploys)
+        context = (
+            " ".join(logs) + " " + " ".join(d.get("revision") or "" for d in deploys)
+        )
 
         runbook = match_runbook(metric, context, self._runbooks)
         if runbook is None:
@@ -117,7 +119,9 @@ class DiagnosisEngine:
         start_ns = int((now - self._log_lookback_seconds) * 1e9)
         end_ns = int(now * 1e9)
         try:
-            return await self._loki.recent_logs(self._target_job, start_ns, end_ns, self._log_line_limit)
+            return await self._loki.recent_logs(
+                self._target_job, start_ns, end_ns, self._log_line_limit
+            )
         except httpx.HTTPError as exc:
             logger.warning("loki query failed error=%s", exc)
             return []

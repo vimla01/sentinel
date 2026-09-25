@@ -25,8 +25,14 @@ def _build_k8s_client() -> K8sClient:
     try:
         return K8sClient.in_cluster(settings.k8s_namespace)
     except (KeyError, FileNotFoundError):
-        logger.warning("not running in-cluster; K8s actions will fail until deployed there")
-        return K8sClient(base_url="https://kubernetes.default.svc", token="", namespace=settings.k8s_namespace)
+        logger.warning(
+            "not running in-cluster; K8s actions will fail until deployed there"
+        )
+        return K8sClient(
+            base_url="https://kubernetes.default.svc",
+            token="",
+            namespace=settings.k8s_namespace,
+        )
 
 
 diagnosis_client = DiagnosisAgentClient(settings.diagnosis_agent_url)
@@ -65,7 +71,9 @@ async def _poll_diagnosis_agent_forever() -> None:
             try:
                 await engine.process_diagnosis(diagnosis)
             except Exception:
-                logger.exception("remediation processing failed for diagnosis=%s", diagnosis)
+                logger.exception(
+                    "remediation processing failed for diagnosis=%s", diagnosis
+                )
 
         await asyncio.sleep(settings.poll_interval_seconds)
 
@@ -108,7 +116,10 @@ def remediations() -> dict:
 async def remediate(diagnosis: dict) -> dict:
     remediation = await engine.process_diagnosis(diagnosis)
     if remediation is None:
-        raise HTTPException(status_code=400, detail="diagnosis is not grounded or has no recommended action")
+        raise HTTPException(
+            status_code=400,
+            detail="diagnosis is not grounded or has no recommended action",
+        )
     return asdict(remediation)
 
 
@@ -117,7 +128,9 @@ async def slack_interactions(request: Request) -> dict:
     body = await request.body()
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
     signature = request.headers.get("X-Slack-Signature", "")
-    if not verify_signature(settings.slack_signing_secret, timestamp, body.decode("utf-8"), signature):
+    if not verify_signature(
+        settings.slack_signing_secret, timestamp, body.decode("utf-8"), signature
+    ):
         raise HTTPException(status_code=401, detail="invalid slack signature")
 
     form = parse_qs(body.decode("utf-8"))

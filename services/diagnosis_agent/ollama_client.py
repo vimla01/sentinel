@@ -4,6 +4,7 @@ import asyncio
 
 logger = logging.getLogger(__name__)
 
+
 class OllamaClient:
     """Thin wrapper around a local Ollama server's generate API with retries and logging."""
 
@@ -17,7 +18,9 @@ class OllamaClient:
         max_retries = 3
         for attempt in range(1, max_retries + 1):
             try:
-                logger.info(f"Ollama Request (Attempt {attempt}/{max_retries}) - URL: {self._base_url}/api/generate, Model: {self._model}")
+                logger.info(
+                    f"Ollama Request (Attempt {attempt}/{max_retries}) - URL: {self._base_url}/api/generate, Model: {self._model}"
+                )
                 response = await self._client.post(
                     "/api/generate",
                     json={"model": self._model, "prompt": prompt, "stream": False},
@@ -27,7 +30,9 @@ class OllamaClient:
                     data = response.json()
                     return data.get("response", "")
                 except ValueError:
-                    logger.error(f"Malformed JSON response from Ollama: {response.text}")
+                    logger.error(
+                        f"Malformed JSON response from Ollama: {response.text}"
+                    )
                     if attempt == max_retries:
                         raise
             except httpx.RequestError as e:
@@ -35,12 +40,14 @@ class OllamaClient:
                 if attempt == max_retries:
                     raise
             except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error from Ollama: {e.response.status_code} - {e.response.text}")
+                logger.error(
+                    f"HTTP error from Ollama: {e.response.status_code} - {e.response.text}"
+                )
                 if attempt == max_retries:
                     raise
-            
-            await asyncio.sleep(2 ** attempt)
-            
+
+            await asyncio.sleep(2**attempt)
+
         return ""
 
     async def aclose(self) -> None:

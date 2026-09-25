@@ -14,7 +14,9 @@ class Settings:
     runbooks_dir: str = os.environ.get("RUNBOOKS_DIR", "runbooks")
     poll_interval_seconds: float = float(os.environ.get("POLL_INTERVAL_SECONDS", "15"))
     log_lookback_seconds: float = float(os.environ.get("LOG_LOOKBACK_SECONDS", "300"))
-    deploy_lookback_seconds: float = float(os.environ.get("DEPLOY_LOOKBACK_SECONDS", "3600"))
+    deploy_lookback_seconds: float = float(
+        os.environ.get("DEPLOY_LOOKBACK_SECONDS", "3600")
+    )
     log_line_limit: int = int(os.environ.get("LOG_LINE_LIMIT", "50"))
     max_diagnoses: int = int(os.environ.get("MAX_DIAGNOSES", "200"))
 

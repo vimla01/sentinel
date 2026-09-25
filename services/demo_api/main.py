@@ -34,11 +34,16 @@ class ChaosState:
     def status(self) -> dict[str, float | int | bool]:
         now = time.monotonic()
         return {
-            "memory_leak_mb": sum(len(chunk) for chunk in _memory_ballast) // (1024 * 1024),
+            "memory_leak_mb": sum(len(chunk) for chunk in _memory_ballast)
+            // (1024 * 1024),
             "cpu_spike_active": now < self.cpu_spike_until,
-            "cpu_spike_remaining_seconds": round(max(0.0, self.cpu_spike_until - now), 1),
+            "cpu_spike_remaining_seconds": round(
+                max(0.0, self.cpu_spike_until - now), 1
+            ),
             "latency_ms": self.latency_ms if now < self.latency_until else 0,
-            "error_probability": self.error_probability if now < self.error_until else 0.0,
+            "error_probability": (
+                self.error_probability if now < self.error_until else 0.0
+            ),
         }
 
 

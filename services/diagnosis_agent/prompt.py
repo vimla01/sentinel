@@ -15,7 +15,9 @@ _ACTION_RE = re.compile(r"Recommended Action:\s*(.+)", re.IGNORECASE)
 _CITED_RE = re.compile(r"Runbook Cited:\s*(\S+)", re.IGNORECASE)
 
 
-def build_prompt(alert: dict, runbook: Runbook, logs: list[str], deploys: list[dict]) -> str:
+def build_prompt(
+    alert: dict, runbook: Runbook, logs: list[str], deploys: list[dict]
+) -> str:
     log_block = "\n".join(logs[-20:]) if logs else "(no recent log lines retrieved)"
     deploy_block = (
         "\n".join(f"- {d.get('revision')} at {d.get('deployed_at')}" for d in deploys)

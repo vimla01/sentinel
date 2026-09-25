@@ -1,0 +1,5 @@
+[MASTER]
+
+[MESSAGES CONTROL]
+disable = missing-docstring,too-many-instance-attributes,too-many-arguments,too-many-positional-arguments,line-too-long,broad-exception-caught,redefined-outer-name,unused-argument,protected-access,raise-missing-from,duplicate-code,too-few-public-methods,unused-import,wrong-import-order,trailing-whitespace,logging-fstring-interpolation,missing-final-newline
+

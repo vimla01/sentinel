@@ -235,18 +235,31 @@ sentinel/
 # Setup
 python3.11 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt pytest-cov black pylint httpx anyio
 
 # Run demo-api and the predictor locally
 uvicorn services.demo_api.main:app --port 8080 --reload
 PROMETHEUS_URL=http://localhost:9090 uvicorn services.predictor.main:app --port 8000 --reload
 
-# Run tests
-pytest tests/ -v --cov=services
+# Run tests with coverage (Automated in CI)
+make test
+# which runs: python -m pytest tests -q --cov=services --cov-report=term-missing --cov-report=xml --cov-fail-under=80
 
-# Code formatting
-black services/
-pylint services/
+# Code formatting and Linting (Automated in CI)
+make lint
+# which runs: python -m black --check services/ && python -m pylint services/
+
+# Run Real E2E Integration Test (Manual/Integration Environment only)
+# Prerequisites: Live Kind cluster and Ollama must be running
+# Note: This test exercises the real Slack HMAC approval mechanism for any remediations requiring approval.
+make test-integration
+# which runs: python -m pytest tests/test_integration_e2e.py -v
+
+# Run Diagnosis-Agent Load Test (Manual)
+# Note: TinyLlama on CPU-only nodes is known to have request latencies >60s. 
+# This manual test exposes the real LLM latency limitations.
+make test-load
+# which runs: python scripts/load_test_diagnosis.py
 ```
 
 ## Deployment

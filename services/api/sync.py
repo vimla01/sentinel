@@ -51,12 +51,18 @@ class IncidentSync:
 
     async def sync_once(self) -> int:
         updated = 0
-        updated += await self._ingest(self._predictor.get_alerts, "predictor", self._store.upsert_predicted)
         updated += await self._ingest(
-            self._diagnosis.get_diagnoses, "diagnosis-agent", self._store.upsert_diagnosis
+            self._predictor.get_alerts, "predictor", self._store.upsert_predicted
         )
         updated += await self._ingest(
-            self._remediator.get_remediations, "remediator", self._store.upsert_remediation
+            self._diagnosis.get_diagnoses,
+            "diagnosis-agent",
+            self._store.upsert_diagnosis,
+        )
+        updated += await self._ingest(
+            self._remediator.get_remediations,
+            "remediator",
+            self._store.upsert_remediation,
         )
         self._refresh_gauges()
         return updated
@@ -76,7 +82,7 @@ class IncidentSync:
                 "%s poll raised unexpected error error_type=%s error=%s",
                 name,
                 type(exc).__name__,
-                exc
+                exc,
             )
             return 0
 
@@ -99,9 +105,9 @@ class IncidentSync:
 
         counts = {name: 0 for name in STAGE_LEVELS}
         for row in rows:
-            incident_stage_level.labels(incident_id=row["id"], metric=row["metric"]).set(
-                STAGE_LEVELS[row["stage"]]
-            )
+            incident_stage_level.labels(
+                incident_id=row["id"], metric=row["metric"]
+            ).set(STAGE_LEVELS[row["stage"]])
             counts[row["stage"]] += 1
 
         for stage_name, count in counts.items():

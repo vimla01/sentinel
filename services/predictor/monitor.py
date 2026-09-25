@@ -50,7 +50,9 @@ def evaluate_metric(window: deque, value: float) -> Evaluation:
 
     window.append(value)
     breached = z_score >= settings.threshold_sigma
-    return Evaluation(value=value, mean=mean, stddev=stddev, z_score=z_score, breached=breached)
+    return Evaluation(
+        value=value, mean=mean, stddev=stddev, z_score=z_score, breached=breached
+    )
 
 
 @dataclass
@@ -84,7 +86,9 @@ class RiskMonitor:
     def __init__(self, prometheus: PrometheusClient, job: str) -> None:
         self._prometheus = prometheus
         self._queries = build_queries(job)
-        self._states: dict[str, MetricState] = {name: MetricState() for name in self._queries}
+        self._states: dict[str, MetricState] = {
+            name: MetricState() for name in self._queries
+        }
         self._alerts: deque[Alert] = deque(maxlen=settings.max_alerts)
 
     @property
@@ -127,7 +131,10 @@ class RiskMonitor:
 
         now = time.monotonic()
         if result.breached:
-            if not state.alerting and (now - state.last_alert_at) >= settings.alert_cooldown_seconds:
+            if (
+                not state.alerting
+                and (now - state.last_alert_at) >= settings.alert_cooldown_seconds
+            ):
                 state.alerting = True
                 state.last_alert_at = now
                 self._fire_alert(name, result)

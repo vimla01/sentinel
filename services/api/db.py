@@ -160,11 +160,15 @@ class IncidentStore:
         return iid
 
     def get(self, incident_id_: str) -> dict | None:
-        row = self._conn.execute("SELECT * FROM incidents WHERE id = ?", (incident_id_,)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM incidents WHERE id = ?", (incident_id_,)
+        ).fetchone()
         return _row_to_dict(row) if row else None
 
     def latest(self) -> dict | None:
-        row = self._conn.execute("SELECT * FROM incidents ORDER BY updated_at DESC LIMIT 1").fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM incidents ORDER BY updated_at DESC LIMIT 1"
+        ).fetchone()
         return _row_to_dict(row) if row else None
 
     def history(self, limit: int = 50) -> list[dict]:
@@ -179,9 +183,13 @@ class IncidentStore:
 
 def _row_to_dict(row: sqlite3.Row) -> dict:
     data = dict(row)
-    data["grounded"] = bool(data["grounded"]) if data.get("grounded") is not None else None
+    data["grounded"] = (
+        bool(data["grounded"]) if data.get("grounded") is not None else None
+    )
     data["remediation_auto"] = (
-        bool(data["remediation_auto"]) if data.get("remediation_auto") is not None else None
+        bool(data["remediation_auto"])
+        if data.get("remediation_auto") is not None
+        else None
     )
     data["stage"] = stage(data)
     return data

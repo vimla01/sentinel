@@ -7,7 +7,9 @@ class LokiClient:
     def __init__(self, base_url: str, timeout: float = 5.0) -> None:
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout)
 
-    async def recent_logs(self, job: str, start_ns: int, end_ns: int, limit: int = 50) -> list[str]:
+    async def recent_logs(
+        self, job: str, start_ns: int, end_ns: int, limit: int = 50
+    ) -> list[str]:
         response = await self._client.get(
             "/loki/api/v1/query_range",
             params={

@@ -11,7 +11,9 @@ def tokenize(text: str) -> list[str]:
 
 
 def _runbook_text(runbook: Runbook) -> str:
-    return " ".join([runbook.title, " ".join(runbook.signals), " ".join(runbook.tags), runbook.body])
+    return " ".join(
+        [runbook.title, " ".join(runbook.signals), " ".join(runbook.tags), runbook.body]
+    )
 
 
 def _cosine(a: Counter, b: Counter) -> float:
@@ -26,12 +28,17 @@ def _cosine(a: Counter, b: Counter) -> float:
     return dot / (norm_a * norm_b)
 
 
-def rank_runbooks(context: str, candidates: list[Runbook]) -> list[tuple[Runbook, float]]:
+def rank_runbooks(
+    context: str, candidates: list[Runbook]
+) -> list[tuple[Runbook, float]]:
     """Rank candidates by lexical overlap between `context` and each runbook's
     title/signals/tags/body. Pure term-overlap (no embeddings, no network
     call) so ranking is deterministic and testable offline."""
     query_vec = Counter(tokenize(context))
-    scored = [(rb, _cosine(query_vec, Counter(tokenize(_runbook_text(rb))))) for rb in candidates]
+    scored = [
+        (rb, _cosine(query_vec, Counter(tokenize(_runbook_text(rb)))))
+        for rb in candidates
+    ]
     return sorted(scored, key=lambda pair: pair[1], reverse=True)
 
 
