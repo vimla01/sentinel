@@ -69,8 +69,15 @@ class IncidentSync:
     ) -> int:
         try:
             items = await fetch()
-        except httpx.HTTPError as exc:
-            logger.warning("%s poll failed error=%s", name, exc)
+        except Exception as exc:
+            # Changed: catch ALL exceptions, not just httpx.HTTPError
+            # This prevents the poll task from crashing on unexpected errors
+            logger.exception(
+                "%s poll raised unexpected error error_type=%s error=%s",
+                name,
+                type(exc).__name__,
+                exc
+            )
             return 0
 
         count = 0
