@@ -7,3 +7,5 @@ __pycache__/
 crash.log
 .env
 .DS_Store
+.coverage
+coverage.xml

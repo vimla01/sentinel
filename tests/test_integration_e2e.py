@@ -12,9 +12,14 @@ import signal
 pytestmark = pytest.mark.integration
 
 def check_env():
-    # Check if we can reach sentinel namespace
-    res = subprocess.run(["kubectl", "get", "ns", "sentinel"], capture_output=True, text=True)
-    if res.returncode != 0:
+    import shutil
+    if not shutil.which("kubectl"):
+        pytest.skip("E2E prerequisites not met: kubectl not found")
+    try:
+        res = subprocess.run(["kubectl", "get", "ns", "sentinel"], capture_output=True, text=True)
+        if res.returncode != 0:
+            pytest.skip("E2E prerequisites not met: Kind cluster or sentinel namespace not available")
+    except Exception:
         pytest.skip("E2E prerequisites not met: Kind cluster or sentinel namespace not available")
 
 @pytest.fixture(scope="module")

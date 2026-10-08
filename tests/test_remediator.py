@@ -369,3 +369,71 @@ async def test_engine_git_native_rollback(tmp_path) -> None:
     assert resolved.status == "executed"
     assert "sentinel" in resolved.result
     assert "image: demo-api:v1" in deploy_file.read_text()
+
+
+def test_git_client_errors_when_not_git_repo(tmp_path) -> None:
+    git = GitClient(str(tmp_path))
+    with pytest.raises(RuntimeError, match="not a valid git repository"):
+        git.rollback_deployment("demo-api", "rev1")
+
+    with pytest.raises(RuntimeError, match="not a valid git repository"):
+        git.scale_deployment("demo-api", 2)
+
+
+def test_git_client_scale_deployment_missing_file_and_no_change(tmp_path) -> None:
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "tester"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "tester@test.local"], check=True)
+
+    git = GitClient(str(tmp_path))
+    with pytest.raises(FileNotFoundError):
+        git.scale_deployment("nonexistent", 3)
+
+    app_dir = tmp_path / "infra" / "k8s" / "apps" / "demo-api"
+    app_dir.mkdir(parents=True)
+    deploy_file = app_dir / "deployment.yaml"
+    deploy_file.write_text("replicas: 3\nimage: demo-api:v1\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "initial v1"], check=True)
+
+    # Scaling to same replicas returns "no change"
+    res = git.scale_deployment("demo-api", 3)
+    assert res == "no change"
+
+
+@pytest.mark.anyio
+async def test_argocd_client_sync_error_and_aclose() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, text="Internal Server Error")
+
+    argocd = ArgocdClient("http://argocd:80")
+    argocd._client = _mock_transport("http://argocd:80", handler)
+
+    res = await argocd.sync("sentinel")
+    assert res == {}
+
+    await argocd.aclose()
+
+
+@pytest.mark.anyio
+async def test_argocd_client_rollback_git_error_fallback() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={"status": {"history": [{"id": 1, "revision": "rev1"}, {"id": 2, "revision": "rev2"}]}},
+            )
+        return httpx.Response(200, json={})
+
+    argocd = ArgocdClient("http://argocd:80")
+    argocd._client = _mock_transport("http://argocd:80", handler)
+
+    class BrokenGit:
+        def is_git_repo(self):
+            return True
+
+        def rollback_deployment(self, name, rev):
+            raise RuntimeError("simulated git error")
+
+    res = await argocd.rollback("sentinel", git_client=BrokenGit())
+    assert res["rolled_back_to"]["id"] == 1

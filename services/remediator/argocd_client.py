@@ -46,9 +46,7 @@ class ArgocdClient:
     ) -> dict:
         previous = await self.get_previous_revision(app_name)
         prev_rev = (
-            target_revision
-            or previous.get("revision")
-            or str(previous.get("id"))
+            target_revision or previous.get("revision") or str(previous.get("id"))
         )
 
         git_commit = None
