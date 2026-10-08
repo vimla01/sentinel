@@ -29,8 +29,8 @@ spec:
             # kubelet mount fails outright (verified: mounting onto the bare
             # directory errors "not a directory" and the pod never starts).
             - name: config
-              mountPath: /etc/grafana/provisioning/datasources/prometheus.yaml
-              subPath: prometheus.yaml
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
             - name: dashboard-providers
               mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
               subPath: dashboards.yaml
@@ -41,8 +41,8 @@ spec:
           configMap:
             name: grafana-datasources
             items:
-              - key: prometheus.yaml
-                path: prometheus.yaml
+              - key: datasources.yaml
+                path: datasources.yaml
         - name: dashboard-providers
           configMap:
             name: grafana-dashboard-providers

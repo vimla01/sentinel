@@ -124,6 +124,7 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: sentinel
+        - namespaceSelector: {}
       ports:
         - protocol: TCP
           port: 8080

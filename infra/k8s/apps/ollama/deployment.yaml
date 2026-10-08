@@ -32,4 +32,5 @@ spec:
               memory: 4Gi
       volumes:
         - name: models
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: ollama-models

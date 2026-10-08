@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: remediator-slack
+  namespace: sentinel
+  labels:
+    app.kubernetes.io/name: remediator
+    app.kubernetes.io/part-of: sentinel
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /slack/interactions
+            pathType: Prefix
+            backend:
+              service:
+                name: remediator
+                port:
+                  number: 8080

@@ -12,6 +12,7 @@ class Settings:
     target_deployment: str = os.environ.get("TARGET_DEPLOYMENT", "demo-api")
     argocd_url: str = os.environ.get("ARGOCD_URL", "http://argocd-server.argocd:80")
     argocd_app: str = os.environ.get("ARGOCD_APP", "sentinel")
+    git_repo_path: str = os.environ.get("GIT_REPO_PATH", "")
     slack_bot_token: str = os.environ.get("SLACK_BOT_TOKEN", "")
     slack_signing_secret: str = os.environ.get("SLACK_SIGNING_SECRET", "")
     slack_channel: str = os.environ.get("SLACK_CHANNEL", "")

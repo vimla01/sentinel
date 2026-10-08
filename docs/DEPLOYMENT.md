@@ -19,30 +19,65 @@ kubectl -n argocd get application sentinel
 
 The final `kubectl` command is inspection only. Changes to workloads belong in Git and are reconciled by ArgoCD.
 
-## Ollama model
+## Ollama model & Persistent Storage
 
-The `ollama` deployment ships with no models baked in - pull one into its
-pod after it's running, once per cluster (the model lives on the pod's
-`emptyDir`, so it does not survive a pod restart in this local setup):
+The `ollama` deployment uses a dedicated PersistentVolumeClaim (`ollama-models`, `infra/k8s/apps/ollama/pvc.yaml`) mounted at `/root/.ollama`. Kind's default `local-path-provisioner` provisions the volume automatically.
+
+Because storage is persistent, the model only needs to be pulled **once per cluster lifetime** and survives pod restarts, evictions, and deployments:
 
 ```bash
-kubectl -n sentinel exec deploy/ollama -- ollama pull llama3
+kubectl -n sentinel exec deploy/ollama -- ollama pull tinyllama
 ```
 
-`diagnosis-agent`'s `OLLAMA_MODEL` env var (default `llama3`) must match
-whatever model was pulled.
+`diagnosis-agent`'s `OLLAMA_MODEL` env var (default `tinyllama`) must match whatever model was pulled.
 
-## Slack approvals
+## Grafana & Observability Datasources
 
-remediator only auto-executes restart/scale/rollback for diagnoses whose
-runbook explicitly marks `approval_required: false` - everything else waits
-on a Slack Approve/Deny click, so a working Slack app is required for any
-non-auto remediation to ever complete. Create a Slack app with a bot token
-(`chat:write` scope) and Interactivity enabled, pointing its Request URL at
-this cluster's `remediator` service (`/slack/interactions` - requires the
-service to be reachable from Slack's servers, e.g. via an Ingress and a
-public DNS name; this repo does not provision one). Then create the secret
-remediator reads its credentials from:
+Grafana is provisioned with both Prometheus and Loki datasources declaratively in `infra/k8s/apps/grafana/datasource-config.yaml`:
+- **Prometheus**: `http://prometheus:9090` (default TSDB for metrics and timeline gauges)
+- **Loki**: `http://loki:3100` (log aggregation engine queried by `diagnosis-agent` and Grafana Explore)
+
+## Git-Native Remediation
+
+To prevent ArgoCD's automated sync (`selfHeal: true`, `prune: true`) from immediately undoing out-of-band rollbacks or replica scaling, `remediator` integrates a `GitClient` (`services/remediator/git_client.py`).
+
+When an approval-governed rollback executes:
+1. `remediator` queries ArgoCD's deploy history to find the previous known-good commit.
+2. It restores the target deployment manifests from that revision and commits the change to the Git repository.
+3. It triggers an ArgoCD sync (`POST /api/v1/applications/{app}/sync`).
+4. ArgoCD reconciles the cluster to the new Git commit. Because the desired state is represented in Git, `selfHeal: true` will never revert the remediation.
+
+Configure `GIT_REPO_PATH` in `remediator`'s environment if running with a mounted repository.
+
+## Slack Approvals & External Reachability
+
+`remediator` auto-executes restart/scale for safe runbook actions. Anything requiring approval dispatches an interactive Slack message with Approve/Deny buttons and awaits HMAC-signed callbacks at `/slack/interactions`.
+
+### Webhook Ingress & Tunnel Setup
+
+1. **In-Cluster Routing**: `infra/k8s/apps/remediator/ingress.yaml` routes external requests from `/slack/interactions` to `service/remediator:8080`, and `infra/k8s/network-policies.yaml` allows ingress traffic.
+2. **Local Development Reachability**: Slack cloud servers (`api.slack.com`) require a public HTTPS endpoint to deliver interactivity webhooks to a local Kind cluster. Run the development tunnel helper:
+
+```bash
+bash scripts/slack_tunnel.sh
+```
+
+Then start a tunnel using Cloudflare or ngrok:
+```bash
+# Cloudflare Tunnel (free, no account required)
+cloudflared tunnel --url http://localhost:8082
+
+# Or ngrok
+ngrok http 8082
+```
+
+3. **Slack App Configuration**:
+   - In your Slack App settings under **Interactivity & Shortcuts**, toggle **Interactivity** to ON.
+   - Set the **Request URL** to `https://<your-tunnel-subdomain>/slack/interactions`.
+   - Save changes.
+
+4. **Secret Creation**:
+   Provision the credentials secret in the `sentinel` namespace:
 
 ```bash
 kubectl -n sentinel create secret generic remediator-slack \
@@ -50,21 +85,8 @@ kubectl -n sentinel create secret generic remediator-slack \
   --from-literal=signing-secret=...
 ```
 
-`remediator`'s `SLACK_CHANNEL` env var (default `#sentinel-incidents`) must
-be a channel the bot has been invited to. Without this secret, remediator
-still runs and still auto-executes safe actions - only the approval path is
-unavailable, and it logs the failure to post rather than crashing.
+`remediator`'s `SLACK_CHANNEL` env var (default `#sentinel-incidents`) must be a channel the bot has been invited to. Without this secret, remediator still runs and auto-executes safe actions; only the approval path is skipped.
 
 ## Incident history persistence
 
-`api` is the one service in this platform with durable state: it persists
-the correlated incident timeline to SQLite on a `PersistentVolumeClaim`
-(`api-data`, `infra/k8s/apps/api/pvc.yaml`) rather than keeping it in
-memory like predictor/diagnosis-agent/remediator do. Kind's default
-`local-path-provisioner` binds the PVC automatically - no extra setup
-needed - but that storage lives on the Kind node's container filesystem, so
-incident history is lost on `kind delete cluster` along with everything
-else, not just on a pod restart. If the `api` pod can't write to its mounted
-path for any reason, it falls back to an in-memory store and logs a
-warning rather than crashing - `curl .../incidents/latest` still works in
-that case, it just won't survive a restart.
+`api` is the service in this platform with durable incident state: it persists the correlated incident timeline to SQLite on a `PersistentVolumeClaim` (`api-data`, `infra/k8s/apps/api/pvc.yaml`) rather than keeping it in memory. If the `api` pod cannot write to its mounted path, it falls back to an in-memory store and logs a warning.

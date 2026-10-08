@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from .argocd_client import ArgocdClient
+from .git_client import GitClient
 from .k8s_client import K8sClient
 from .policy import classify, should_auto_execute
 from .slack_client import SlackClient
@@ -46,6 +47,7 @@ class RemediationEngine:
         scale_step: int,
         max_replicas: int,
         max_remediations: int = 200,
+        git: GitClient | None = None,
     ) -> None:
         self._k8s = k8s
         self._argocd = argocd
@@ -56,6 +58,7 @@ class RemediationEngine:
         self._scale_step = scale_step
         self._max_replicas = max_replicas
         self._max_remediations = max_remediations
+        self._git = git
         self._remediations: dict[str, Remediation] = {}
 
     @property
@@ -124,10 +127,26 @@ class RemediationEngine:
                 await self._k8s.scale_deployment(
                     self._target_deployment, self._scale_step, self._max_replicas
                 )
+                if self._git and self._git.is_git_repo():
+                    try:
+                        self._git.scale_deployment(
+                            self._target_deployment, self._scale_step
+                        )
+                        await self._argocd.sync(self._argocd_app)
+                    except Exception as exc:
+                        logger.warning("git scale sync failed: %s", exc)
                 remediation.result = f"scaled deployment/{self._target_deployment}"
             elif remediation.category == "rollback":
-                await self._argocd.rollback(self._argocd_app)
-                remediation.result = f"rolled back application/{self._argocd_app}"
+                rollback_info = await self._argocd.rollback(
+                    self._argocd_app,
+                    git_client=self._git,
+                    target_deployment=self._target_deployment,
+                )
+                rev = rollback_info.get("revision")
+                rev_str = f" to revision {rev}" if rev else ""
+                remediation.result = (
+                    f"rolled back application/{self._argocd_app}{rev_str}"
+                )
             else:
                 raise ValueError(f"unsupported action category: {remediation.category}")
             remediation.status = "executed"

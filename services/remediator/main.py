@@ -14,6 +14,7 @@ from .argocd_client import ArgocdClient
 from .config import settings
 from .diagnosis_client import DiagnosisAgentClient
 from .engine import RemediationEngine
+from .git_client import GitClient
 from .k8s_client import K8sClient
 from .slack_client import SlackClient, verify_signature
 
@@ -39,6 +40,7 @@ diagnosis_client = DiagnosisAgentClient(settings.diagnosis_agent_url)
 k8s_client = _build_k8s_client()
 argocd_client = ArgocdClient(settings.argocd_url)
 slack_client = SlackClient(settings.slack_bot_token)
+git_client = GitClient(settings.git_repo_path) if settings.git_repo_path else None
 engine = RemediationEngine(
     k8s=k8s_client,
     argocd=argocd_client,
@@ -49,6 +51,7 @@ engine = RemediationEngine(
     scale_step=settings.scale_step,
     max_replicas=settings.max_replicas,
     max_remediations=settings.max_remediations,
+    git=git_client,
 )
 
 _seen_diagnoses: set[tuple[str, float]] = set()
