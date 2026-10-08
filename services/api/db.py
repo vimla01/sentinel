@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import time
 
@@ -21,6 +22,11 @@ CREATE TABLE IF NOT EXISTS incidents (
     remediation_status TEXT,
     remediation_result TEXT,
     remediated_at REAL,
+    verification_status TEXT,
+    verification_attempt INTEGER DEFAULT 0,
+    verification_result TEXT,
+    verification_details TEXT,
+    failure_reason TEXT,
     updated_at REAL NOT NULL
 );
 """
@@ -32,8 +38,13 @@ STAGE_LEVELS = {
     "diagnosed": 1,
     "awaiting_approval": 2,
     "denied": 3,
-    "remediated": 4,
-    "failed": 5,
+    "remediation_started": 4,
+    "remediated": 5,
+    "verifying": 6,
+    "resolved": 7,
+    "failed_verification": 8,
+    "escalated": 9,
+    "failed": 10,
 }
 
 
@@ -48,13 +59,20 @@ def incident_id(metric: str, fired_at: float) -> str:
 def stage(row: dict) -> str:
     """Derived, not stored - avoids a second source of truth that could
     drift from the underlying columns."""
-    status = row.get("remediation_status")
+    status = (row.get("remediation_status") or "").lower()
     if status == "executed":
         return "remediated"
-    if status in ("failed", "denied"):
+    if status in (
+        "remediation_started",
+        "verifying",
+        "resolved",
+        "failed_verification",
+        "escalated",
+        "failed",
+        "denied",
+        "awaiting_approval",
+    ):
         return status
-    if status == "awaiting_approval":
-        return "awaiting_approval"
     if row.get("diagnosed_at") is not None:
         return "diagnosed"
     return "predicted"
@@ -72,6 +90,17 @@ class IncidentStore:
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute(_SCHEMA)
+        for col, ctype in [
+            ("verification_status", "TEXT"),
+            ("verification_attempt", "INTEGER DEFAULT 0"),
+            ("verification_result", "TEXT"),
+            ("verification_details", "TEXT"),
+            ("failure_reason", "TEXT"),
+        ]:
+            try:
+                self._conn.execute(f"ALTER TABLE incidents ADD COLUMN {col} {ctype}")
+            except sqlite3.OperationalError:
+                pass
         self._conn.commit()
 
     def upsert_predicted(self, alert: dict) -> str:
@@ -133,6 +162,10 @@ class IncidentStore:
     def upsert_remediation(self, remediation: dict) -> str:
         alert = remediation["alert"]
         iid = self.upsert_predicted(alert)
+        verification_details = remediation.get("verification_details")
+        if isinstance(verification_details, dict):
+            verification_details = json.dumps(verification_details)
+
         self._conn.execute(
             """
             UPDATE incidents SET
@@ -142,6 +175,11 @@ class IncidentStore:
                 remediation_status = :status,
                 remediation_result = :result,
                 remediated_at = :remediated_at,
+                verification_status = :verification_status,
+                verification_attempt = :verification_attempt,
+                verification_result = :verification_result,
+                verification_details = :verification_details,
+                failure_reason = :failure_reason,
                 updated_at = :now
             WHERE id = :id
             """,
@@ -153,6 +191,11 @@ class IncidentStore:
                 "status": remediation.get("status"),
                 "result": remediation.get("result"),
                 "remediated_at": remediation.get("resolved_at"),
+                "verification_status": remediation.get("verification_status"),
+                "verification_attempt": remediation.get("verification_attempt", 0),
+                "verification_result": remediation.get("verification_result"),
+                "verification_details": verification_details,
+                "failure_reason": remediation.get("failure_reason"),
                 "now": time.time(),
             },
         )
@@ -191,5 +234,14 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
         if data.get("remediation_auto") is not None
         else None
     )
+    if (
+        isinstance(data.get("verification_details"), str)
+        and data["verification_details"]
+    ):
+        try:
+            data["verification_details"] = json.loads(data["verification_details"])
+        except (json.JSONDecodeError, TypeError):
+            pass
     data["stage"] = stage(data)
+    data["status"] = data.get("remediation_status") or data["stage"]
     return data

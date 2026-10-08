@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import time
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 
 import httpx
 
@@ -24,6 +26,14 @@ class Remediation:
     auto: bool
     status: str
     result: str = ""
+    target_workload: str = "demo-api"
+    action_executed: str = ""
+    verification_status: str = "pending"
+    verification_attempt: int = 0
+    verification_result: str = ""
+    verification_details: dict = field(default_factory=dict)
+    failure_reason: str = ""
+    escalated_at: float | None = None
     slack_channel: str = ""
     slack_ts: str = ""
     created_at: float = field(default_factory=time.time)
@@ -48,6 +58,8 @@ class RemediationEngine:
         max_replicas: int,
         max_remediations: int = 200,
         git: GitClient | None = None,
+        verifier: Any = None,
+        wait_for_verification: bool = True,
     ) -> None:
         self._k8s = k8s
         self._argocd = argocd
@@ -59,6 +71,8 @@ class RemediationEngine:
         self._max_replicas = max_replicas
         self._max_remediations = max_remediations
         self._git = git
+        self._verifier = verifier
+        self._wait_for_verification = wait_for_verification
         self._remediations: dict[str, Remediation] = {}
 
     @property
@@ -119,6 +133,10 @@ class RemediationEngine:
 
     async def _execute(self, remediation: Remediation) -> None:
         try:
+            remediation.status = "remediation_started"
+            remediation.target_workload = self._target_deployment
+            remediation.action_executed = remediation.category
+
             if remediation.category == "restart":
                 await self._k8s.restart_deployment(self._target_deployment)
 
@@ -150,12 +168,22 @@ class RemediationEngine:
             else:
                 raise ValueError(f"unsupported action category: {remediation.category}")
             remediation.status = "executed"
+
+            if self._verifier is not None:
+                if self._wait_for_verification:
+                    await self._verifier.verify(remediation, slack=self._slack)
+                else:
+                    asyncio.create_task(
+                        self._verifier.verify(remediation, slack=self._slack)
+                    )
         except (httpx.HTTPError, ValueError) as exc:
             remediation.status = "failed"
             remediation.result = str(exc)
+            remediation.resolved_at = time.time()
             logger.exception("remediation execution failed id=%s", remediation.id)
         finally:
-            remediation.resolved_at = time.time()
+            if self._verifier is None and remediation.resolved_at is None:
+                remediation.resolved_at = time.time()
             logger.info(
                 "REMEDIATION id=%s category=%s auto=%s status=%s result=%s alert=%s",
                 remediation.id,
@@ -165,6 +193,12 @@ class RemediationEngine:
                 remediation.result,
                 remediation.alert,
             )
+
+    async def verify_remediation(self, remediation_id: str) -> Remediation:
+        remediation = self._remediations[remediation_id]
+        if self._verifier is not None:
+            await self._verifier.verify(remediation, slack=self._slack)
+        return remediation
 
     async def _request_approval(self, remediation: Remediation) -> None:
         remediation.status = "awaiting_approval"

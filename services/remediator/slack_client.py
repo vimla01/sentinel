@@ -79,6 +79,14 @@ class SlackClient:
             {"channel": channel, "ts": ts, "text": text, "blocks": []},
         )
 
+    async def post_message(
+        self, channel: str, text: str, blocks: list | None = None
+    ) -> dict:
+        payload = {"channel": channel, "text": text}
+        if blocks:
+            payload["blocks"] = blocks
+        return await self._call("/api/chat.postMessage", payload)
+
     async def _call(self, path: str, payload: dict) -> dict:
         response = await self._client.post(path, json=payload)
         response.raise_for_status()

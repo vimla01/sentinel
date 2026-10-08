@@ -80,5 +80,12 @@ class K8sClient:
         response.raise_for_status()
         return int(response.json().get("spec", {}).get("replicas", 1))
 
+    async def get_deployment(self, name: str) -> dict:
+        response = await self._client.get(
+            f"/apis/apps/v1/namespaces/{self._namespace}/deployments/{name}"
+        )
+        response.raise_for_status()
+        return response.json()
+
     async def aclose(self) -> None:
         await self._client.aclose()

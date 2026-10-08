@@ -39,8 +39,19 @@ spec:
               value: sentinel
             - name: POLL_INTERVAL_SECONDS
               value: "15"
+            - name: VERIFICATION_DELAY
+              value: "5"
+            - name: VERIFICATION_INTERVAL
+              value: "3"
+            - name: VERIFICATION_MAX_ATTEMPTS
+              value: "3"
+            - name: PROMETHEUS_URL
+              value: http://prometheus:9090
+            - name: TARGET_WORKLOAD_URL
+              value: http://demo-api:8080
             - name: SLACK_CHANNEL
               value: "#sentinel-incidents"
+
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:

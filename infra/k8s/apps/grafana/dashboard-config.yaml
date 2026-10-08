@@ -48,8 +48,13 @@ data:
                 {"type": "value", "options": {"1": {"text": "Diagnosed", "color": "yellow"}}},
                 {"type": "value", "options": {"2": {"text": "Awaiting Approval", "color": "orange"}}},
                 {"type": "value", "options": {"3": {"text": "Denied", "color": "red"}}},
-                {"type": "value", "options": {"4": {"text": "Remediated", "color": "green"}}},
-                {"type": "value", "options": {"5": {"text": "Failed", "color": "dark-red"}}}
+                {"type": "value", "options": {"4": {"text": "Remediation Started", "color": "purple"}}},
+                {"type": "value", "options": {"5": {"text": "Remediated", "color": "green"}}},
+                {"type": "value", "options": {"6": {"text": "Verifying", "color": "yellow"}}},
+                {"type": "value", "options": {"7": {"text": "Resolved", "color": "green"}}},
+                {"type": "value", "options": {"8": {"text": "Failed Verification", "color": "orange"}}},
+                {"type": "value", "options": {"9": {"text": "Escalated", "color": "dark-red"}}},
+                {"type": "value", "options": {"10": {"text": "Failed", "color": "dark-red"}}}
               ]
             }
           },
@@ -63,9 +68,18 @@ data:
             {"expr": "sentinel_incidents_by_stage", "legendFormat": "{{stage}}"}
           ],
           "gridPos": {"x": 0, "y": 10, "w": 24, "h": 6}
+        },
+        {
+          "type": "stat",
+          "title": "Post-Remediation Verification Outcomes",
+          "description": "Total verification outcomes tracked by SENTINEL.",
+          "targets": [
+            {"expr": "sum by (result) (sentinel_remediation_verification_total)", "legendFormat": "{{result}}"}
+          ],
+          "gridPos": {"x": 0, "y": 16, "w": 24, "h": 6}
         }
       ],
       "title": "Incident Timeline",
       "schemaVersion": 16,
-      "version": 1
+      "version": 2
     }

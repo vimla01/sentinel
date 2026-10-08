@@ -14,7 +14,8 @@ logger = logging.getLogger("api.sync")
 incident_stage_level = Gauge(
     "sentinel_incident_stage_level",
     "Current lifecycle stage of a tracked incident: "
-    "0=predicted 1=diagnosed 2=awaiting_approval 3=denied 4=remediated 5=failed",
+    "0=predicted 1=diagnosed 2=awaiting_approval 3=denied 4=remediation_started "
+    "5=remediated 6=verifying 7=resolved 8=failed_verification 9=escalated 10=failed",
     ["incident_id", "metric"],
 )
 incidents_by_stage = Gauge(
@@ -105,10 +106,12 @@ class IncidentSync:
 
         counts = {name: 0 for name in STAGE_LEVELS}
         for row in rows:
-            incident_stage_level.labels(
-                incident_id=row["id"], metric=row["metric"]
-            ).set(STAGE_LEVELS[row["stage"]])
-            counts[row["stage"]] += 1
+            stg = row["stage"]
+            if stg in STAGE_LEVELS:
+                incident_stage_level.labels(
+                    incident_id=row["id"], metric=row["metric"]
+                ).set(STAGE_LEVELS[stg])
+                counts[stg] += 1
 
         for stage_name, count in counts.items():
             incidents_by_stage.labels(stage=stage_name).set(count)

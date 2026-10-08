@@ -17,6 +17,7 @@ from .engine import RemediationEngine
 from .git_client import GitClient
 from .k8s_client import K8sClient
 from .slack_client import SlackClient, verify_signature
+from .verifier import HealthVerifier, PrometheusClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("remediator.main")
@@ -41,6 +42,21 @@ k8s_client = _build_k8s_client()
 argocd_client = ArgocdClient(settings.argocd_url)
 slack_client = SlackClient(settings.slack_bot_token)
 git_client = GitClient(settings.git_repo_path) if settings.git_repo_path else None
+prometheus_client = (
+    PrometheusClient(settings.prometheus_url) if settings.prometheus_url else None
+)
+verifier = (
+    HealthVerifier(
+        k8s=k8s_client,
+        prometheus=prometheus_client,
+        workload_url=settings.target_workload_url,
+        delay_seconds=settings.verification_delay_seconds,
+        interval_seconds=settings.verification_interval_seconds,
+        max_attempts=settings.verification_max_attempts,
+    )
+    if settings.verification_enabled
+    else None
+)
 engine = RemediationEngine(
     k8s=k8s_client,
     argocd=argocd_client,
@@ -52,7 +68,10 @@ engine = RemediationEngine(
     max_replicas=settings.max_replicas,
     max_remediations=settings.max_remediations,
     git=git_client,
+    verifier=verifier,
+    wait_for_verification=settings.wait_for_verification,
 )
+
 
 _seen_diagnoses: set[tuple[str, float]] = set()
 
@@ -88,6 +107,8 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         poll_task.cancel()
+        if verifier is not None:
+            await verifier.aclose()
         await diagnosis_client.aclose()
         await k8s_client.aclose()
         await argocd_client.aclose()
@@ -95,6 +116,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SENTINEL remediator", version="0.1.0", lifespan=lifespan)
+
 
 # metrics.default() re-registers the same collector names on every call, which
 # raises if another instrumented FastAPI app already did so in this process
@@ -154,3 +176,12 @@ async def slack_interactions(request: Request) -> dict:
         raise HTTPException(status_code=404, detail="unknown remediation id")
 
     return {"status": remediation.status}
+
+
+@app.post("/remediations/{remediation_id}/verify")
+async def verify_endpoint(remediation_id: str) -> dict:
+    try:
+        rem = await engine.verify_remediation(remediation_id)
+        return asdict(rem)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown remediation id")
