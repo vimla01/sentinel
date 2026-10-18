@@ -1,0 +1,22 @@
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentinel/jenkins:local
+    container_name: sentinel-jenkins
+    user: "1000:${DOCKER_GID:-117}"
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../..:/workspace/sentinel:ro
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+    name: sentinel_jenkins_home
