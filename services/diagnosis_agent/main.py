@@ -53,9 +53,9 @@ async def _poll_predictor_forever() -> None:
             key = (alert.get("metric"), alert.get("fired_at"))
             if key in _seen_alerts:
                 continue
-            _seen_alerts.add(key)
             try:
                 await engine.diagnose(alert)
+                _seen_alerts.add(key)
             except Exception:
                 logger.exception("diagnosis failed for alert=%s", alert)
 

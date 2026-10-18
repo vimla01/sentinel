@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 class OllamaClient:
     """Thin wrapper around a local Ollama server's generate API with retries and logging."""
 
-    def __init__(self, base_url: str, model: str, timeout: float = 60.0) -> None:
-        timeout_config = httpx.Timeout(timeout, connect=5.0)
+    def __init__(self, base_url: str, model: str, timeout: float = 90.0) -> None:
+        timeout_config = httpx.Timeout(timeout, connect=15.0)
         self._base_url = base_url
         self._client = httpx.AsyncClient(base_url=base_url, timeout=timeout_config)
         self._model = model
@@ -23,7 +23,12 @@ class OllamaClient:
                 )
                 response = await self._client.post(
                     "/api/generate",
-                    json={"model": self._model, "prompt": prompt, "stream": False},
+                    json={
+                        "model": self._model,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {"num_predict": 120, "temperature": 0.1},
+                    },
                 )
                 response.raise_for_status()
                 try:

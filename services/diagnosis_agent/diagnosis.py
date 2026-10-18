@@ -104,7 +104,10 @@ class DiagnosisEngine:
             grounded=True,
             runbook_id=cited or runbook.id,
             root_cause=root_cause or raw_response.strip(),
-            recommended_action=recommended_action or "",
+            recommended_action=(
+                recommended_action
+                or (runbook.safe_actions[0] if runbook.safe_actions else "")
+            ),
             raw_response=raw_response,
             logs=logs,
             deploys=deploys,

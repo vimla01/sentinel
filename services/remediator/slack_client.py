@@ -1,10 +1,12 @@
 import hashlib
 import hmac
+import logging
 import time
 
 import httpx
 
 _REPLAY_WINDOW_SECONDS = 300
+logger = logging.getLogger("remediator.slack")
 
 
 def verify_signature(
@@ -35,10 +37,12 @@ class SlackClient:
     message in place once a human has responded via /slack/interactions."""
 
     def __init__(self, bot_token: str, timeout: float = 5.0) -> None:
+        headers = {"Authorization": f"Bearer {bot_token}"} if bot_token else {}
+        self._bot_token = bot_token
         self._client = httpx.AsyncClient(
             base_url="https://slack.com",
             timeout=timeout,
-            headers={"Authorization": f"Bearer {bot_token}"},
+            headers=headers,
         )
 
     async def post_approval(self, channel: str, remediation_id: str, text: str) -> dict:
@@ -88,6 +92,9 @@ class SlackClient:
         return await self._call("/api/chat.postMessage", payload)
 
     async def _call(self, path: str, payload: dict) -> dict:
+        if not self._bot_token:
+            logger.debug("slack bot token not configured; skipping call to %s", path)
+            return {"ok": False, "skipped": True}
         response = await self._client.post(path, json=payload)
         response.raise_for_status()
         body = response.json()
