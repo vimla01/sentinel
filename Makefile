@@ -3,9 +3,9 @@
 CLUSTER_NAME ?= sentinel
 ARGO_NAMESPACE ?= argocd
 
-.PHONY: help init plan apply destroy bootstrap test lint build
+.PHONY: help init plan apply destroy bootstrap test lint build load
 help:
-	@echo "make init|plan|apply|destroy|bootstrap|test|lint|build"
+	@echo "make init|plan|apply|destroy|bootstrap|test|lint|build|load"
 
 init:
 	terraform -chdir=infra/terraform init
@@ -42,3 +42,11 @@ build:
 	docker build -t sentinel/diagnosis-agent:dev -f services/diagnosis_agent/Dockerfile .
 	docker build -t sentinel/remediator:dev -f services/remediator/Dockerfile .
 	docker build -t sentinel/api:dev -f services/api/Dockerfile .
+
+load: build
+	kind load docker-image sentinel/hello:dev --name $(CLUSTER_NAME)
+	kind load docker-image sentinel/demo-api:dev --name $(CLUSTER_NAME)
+	kind load docker-image sentinel/predictor:dev --name $(CLUSTER_NAME)
+	kind load docker-image sentinel/diagnosis-agent:dev --name $(CLUSTER_NAME)
+	kind load docker-image sentinel/remediator:dev --name $(CLUSTER_NAME)
+	kind load docker-image sentinel/api:dev --name $(CLUSTER_NAME)

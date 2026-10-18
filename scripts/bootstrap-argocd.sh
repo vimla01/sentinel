@@ -13,6 +13,7 @@ kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n argocd --server-side --force-conflicts -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 kubectl wait --for=condition=available --timeout=180s deployment/argocd-server -n argocd
 kubectl apply -f "${REPO_ROOT}/infra/argocd/project.yaml"
+kubectl -n argocd patch cm argocd-cm --type merge -p '{"data":{"resource.customizations.health.networking.k8s.io_Ingress":"hs = {}\nhs.status = \"Healthy\"\nreturn hs\n"}}'
 kubectl apply -f "${REPO_ROOT}/infra/argocd/application.yaml"
 
 echo "ArgoCD is bootstrapped for ${CLUSTER_NAME}."
