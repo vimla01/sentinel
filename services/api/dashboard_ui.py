@@ -54,11 +54,11 @@ def get_dashboard_html() -> str:
           <span id="mode-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 pulse-dot"></span>
           <span id="mode-text" class="text-slate-300 font-medium">Connecting...</span>
         </div>
-        <button id="refresh-btn" onclick="loadData()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-xs font-semibold text-white transition flex items-center gap-1.5 shadow-sm shadow-emerald-900/30">
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button id="refresh-btn" onclick="loadData(true)" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-xs font-semibold text-white transition flex items-center gap-1.5 shadow-sm shadow-emerald-900/30">
+          <svg id="refresh-icon" class="h-3.5 w-3.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          Refresh
+          <span id="refresh-label">Refresh</span>
         </button>
       </div>
     </div>
@@ -80,10 +80,16 @@ def get_dashboard_html() -> str:
             Continuously tracking breathable particulate matter ($PM_{2.5}, PM_{10}$) and toxic gaseous pollutants across 8 municipal zones. Integrated into SENTINEL SRE observability via Prometheus & Grafana.
           </p>
         </div>
-        <div class="text-right flex flex-col items-start md:items-end text-xs text-slate-400">
-          <span>Observation Timestamp</span>
-          <span id="obs-timestamp" class="text-sm font-semibold text-emerald-400 font-mono">--:--</span>
-          <span id="obs-source" class="text-[11px] text-slate-400">Open-Meteo / Copernicus CAMS</span>
+        <div class="text-right flex flex-col items-start md:items-end text-xs text-slate-400 space-y-0.5">
+          <div class="flex items-center gap-1.5">
+            <span class="text-slate-400">Observation Time:</span>
+            <span id="obs-timestamp" class="text-sm font-semibold text-emerald-400 font-mono">--:--</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-[11px]">
+            <span class="text-slate-400">Last Synced:</span>
+            <span id="last-updated" class="font-mono text-slate-300">--:--</span>
+          </div>
+          <div id="obs-source" class="text-[10px] text-slate-400">Open-Meteo / Copernicus CAMS Grid</div>
         </div>
       </div>
     </section>
@@ -168,12 +174,25 @@ def get_dashboard_html() -> str:
 
       <!-- Station Comparison & Grid Section -->
       <section class="space-y-3">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 class="text-base font-bold text-white tracking-tight">Monitoring Stations Breakdown</h3>
-            <p class="text-xs text-slate-400">Station-level AQI indices and pollutant concentrations</p>
+            <p class="text-xs text-slate-400">Station-level AQI indices and pollutant concentrations across 8 municipal zones</p>
           </div>
           <span class="text-xs font-mono text-slate-400">8 Stations Monitored</span>
+        </div>
+
+        <!-- CAMS Model Grid Transparency Note -->
+        <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 text-xs text-slate-400 flex items-start gap-3">
+          <svg class="h-5 w-5 text-cyan-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <div class="space-y-1">
+            <div class="font-semibold text-slate-300">Spatial Grid Modeling Transparency (Copernicus CAMS / ECMWF)</div>
+            <p class="leading-relaxed">
+              Open-Meteo integrates European CAMS global atmospheric dispersion models at ~0.1° (~11 km) spatial resolution. Central and inland Mumbai stations share regional aerosol grid cells ($PM_{2.5}, PM_{10}$), while coastal Colaba captures distinct maritime boundary layer dynamics and localized gaseous emissions ($CO$) vary across municipal zones.
+            </p>
+          </div>
         </div>
 
         <div id="stations-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -229,25 +248,94 @@ def get_dashboard_html() -> str:
       </section>
 
       <!-- SRE & DevOps Integration Panel -->
-      <section class="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-3">
-        <h3 class="text-xs uppercase tracking-wider font-bold text-slate-400">DevOps & SRE Integration Links</h3>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <a href="/metrics" target="_blank" class="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition flex flex-col group">
-            <span class="text-xs text-slate-400 group-hover:text-emerald-400 transition">Prometheus Metrics</span>
-            <span class="text-sm font-semibold text-white font-mono mt-0.5">/metrics</span>
-          </a>
-          <a href="/api/v1/air-quality/latest" target="_blank" class="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition flex flex-col group">
-            <span class="text-xs text-slate-400 group-hover:text-emerald-400 transition">Air Quality API</span>
-            <span class="text-sm font-semibold text-white font-mono mt-0.5">/api/v1/air-quality</span>
-          </a>
-          <a href="/api/v1/incidents/latest" target="_blank" class="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition flex flex-col group">
-            <span class="text-xs text-slate-400 group-hover:text-emerald-400 transition">Incident Gateway</span>
-            <span class="text-sm font-semibold text-white font-mono mt-0.5">/incidents/latest</span>
-          </a>
-          <a href="/healthz" target="_blank" class="p-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition flex flex-col group">
-            <span class="text-xs text-slate-400 group-hover:text-emerald-400 transition">Service Health</span>
-            <span class="text-sm font-semibold text-white font-mono mt-0.5">/healthz</span>
-          </a>
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/50 p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-sm uppercase tracking-wider font-bold text-slate-300">DevOps & SRE Integration Links</h3>
+            <p class="text-xs text-slate-400">Direct production endpoints used by Prometheus scrapers, ArgoCD, and automated incident remediators</p>
+          </div>
+          <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Production Endpoints</span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <!-- Card 1: /metrics -->
+          <div class="rounded-xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col justify-between hover:border-slate-700 transition space-y-3">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-emerald-400">Prometheus Telemetry</span>
+                <span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">Scrape Target</span>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Exposes raw Prometheus exposition text formatted for metric scrapers (AQI gauges, HTTP latency, daemon counters).
+              </p>
+            </div>
+            <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+              <code class="text-xs text-slate-300 font-mono">/metrics</code>
+              <a href="/metrics" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-slate-700 transition inline-flex items-center gap-1">
+                View Raw Metrics
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Card 2: /api/v1/air-quality -->
+          <div class="rounded-xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col justify-between hover:border-slate-700 transition space-y-3">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-cyan-400">Air Quality JSON API</span>
+                <span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">REST API</span>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Delivers live Mumbai air quality telemetry across all 8 zones, with pollutant concentrations, CAMS attribution, and health categories.
+              </p>
+            </div>
+            <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+              <code class="text-xs text-slate-300 font-mono">/api/v1/air-quality</code>
+              <a href="/api/v1/air-quality" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-slate-700 transition inline-flex items-center gap-1">
+                Inspect JSON API
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Card 3: /incidents/latest -->
+          <div class="rounded-xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col justify-between hover:border-slate-700 transition space-y-3">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-amber-400">Incident Gateway</span>
+                <span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">SRE Loop</span>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Exposes the latest automated SRE incident record, Ollama LLM root-cause diagnosis, runbook execution, and Phase 7 health verification.
+              </p>
+            </div>
+            <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+              <code class="text-xs text-slate-300 font-mono">/incidents/latest</code>
+              <a href="/incidents/latest" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-slate-700 transition inline-flex items-center gap-1">
+                View Incidents
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Card 4: /healthz -->
+          <div class="rounded-xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col justify-between hover:border-slate-700 transition space-y-3">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-blue-400">Service Health Probe</span>
+                <span class="text-[10px] font-mono bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">K8s Probe</span>
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Kubernetes liveness and readiness probe endpoint reporting API gateway daemon status and database connectivity.
+              </p>
+            </div>
+            <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+              <code class="text-xs text-slate-300 font-mono">/healthz</code>
+              <a href="/healthz" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-300 hover:text-blue-200 border border-slate-700 transition inline-flex items-center gap-1">
+                Check Health
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </a>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -268,35 +356,58 @@ def get_dashboard_html() -> str:
   <script>
     let currentStationsData = [];
 
-    async function loadData() {
+    async function loadData(force = false) {
       const loading = document.getElementById('loading-state');
       const content = document.getElementById('content-section');
       const errBanner = document.getElementById('error-banner');
       const modeText = document.getElementById('mode-text');
       const modeDot = document.getElementById('mode-dot');
+      const modeBadge = document.getElementById('mode-badge');
       const obsTimestamp = document.getElementById('obs-timestamp');
       const obsSource = document.getElementById('obs-source');
+      const lastUpdated = document.getElementById('last-updated');
+      const refreshBtn = document.getElementById('refresh-btn');
+      const refreshLabel = document.getElementById('refresh-label');
+      const refreshIcon = document.getElementById('refresh-icon');
+
+      if (force && refreshLabel && refreshIcon) {
+        refreshLabel.textContent = 'Updating...';
+        refreshIcon.classList.add('animate-spin');
+        refreshBtn.disabled = true;
+      }
 
       try {
-        const res = await fetch('/api/v1/air-quality/latest');
+        const url = force ? '/api/v1/air-quality?force_refresh=true' : '/api/v1/air-quality';
+        const res = await fetch(url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         currentStationsData = data.stations || [];
 
         // Update mode badge
-        if (data.data_mode === 'live') {
+        if (data.data_mode === 'live' && !data.is_stale) {
           modeDot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400 pulse-dot';
-          modeText.textContent = 'Live Data';
+          modeText.textContent = 'Live CAMS Grid Data';
+          modeBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-xs';
           errBanner.classList.add('hidden');
+        } else if (data.is_stale) {
+          modeDot.className = 'h-2.5 w-2.5 rounded-full bg-amber-400 pulse-dot';
+          modeText.textContent = 'Cached Data (Stale)';
+          modeBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/30 text-xs';
+          document.getElementById('error-message').textContent = data.stale_reason || 'Upstream API issue: serving cached telemetry.';
+          errBanner.classList.remove('hidden');
         } else {
           modeDot.className = 'h-2.5 w-2.5 rounded-full bg-amber-400';
           modeText.textContent = 'Verified Historical Baseline';
-          document.getElementById('error-message').textContent = 'Displaying verified historical baseline snapshot (' + data.attribution + ')';
+          modeBadge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/30 text-xs';
+          document.getElementById('error-message').textContent = 'Displaying verified historical baseline snapshot (' + (data.attribution || 'CAMS reference') + ')';
           errBanner.classList.remove('hidden');
         }
 
-        obsTimestamp.textContent = data.timestamp || new Date().toISOString();
-        obsSource.textContent = data.data_source || 'Open-Meteo / CAMS';
+        obsTimestamp.textContent = data.observation_time || data.timestamp || '--:--';
+        if (lastUpdated) {
+          lastUpdated.textContent = data.last_updated || new Date().toLocaleTimeString();
+        }
+        obsSource.textContent = data.data_type || data.data_source || 'Open-Meteo / CAMS';
 
         // Update KPIs
         document.getElementById('kpi-avg-aqi').textContent = data.city_average_aqi;
@@ -326,7 +437,7 @@ def get_dashboard_html() -> str:
 
         // Render initial trend
         const selectedStation = document.getElementById('station-select').value || 'Bandra';
-        loadTrend(selectedStation);
+        loadTrend(selectedStation, force);
 
         loading.classList.add('hidden');
         content.classList.remove('hidden');
@@ -334,6 +445,12 @@ def get_dashboard_html() -> str:
         console.error('Data load error:', err);
         document.getElementById('error-message').textContent = 'Error querying telemetry: ' + err.message + '. Retrying with fallback.';
         errBanner.classList.remove('hidden');
+      } finally {
+        if (refreshLabel && refreshIcon) {
+          refreshLabel.textContent = 'Refresh';
+          refreshIcon.classList.remove('animate-spin');
+          refreshBtn.disabled = false;
+        }
       }
     }
 
@@ -344,39 +461,57 @@ def get_dashboard_html() -> str:
       stations.forEach(st => {
         const cat = st.category || { level: 'Moderate', color: '#f59e0b' };
         const card = document.createElement('div');
-        card.className = 'gauge-bg rounded-xl border border-slate-800 p-4 shadow-md space-y-3 hover:border-slate-700 transition';
+        card.className = 'gauge-bg rounded-xl border border-slate-800 p-4 shadow-md space-y-3 hover:border-slate-700 transition flex flex-col justify-between';
+
+        const gridCoord = (st.grid_latitude && st.grid_longitude)
+          ? `${Number(st.grid_latitude).toFixed(1)}°N, ${Number(st.grid_longitude).toFixed(1)}°E`
+          : '--';
+        const stCoord = (st.latitude && st.longitude)
+          ? `${Number(st.latitude).toFixed(3)}°N, ${Number(st.longitude).toFixed(3)}°E`
+          : '';
+
         card.innerHTML = `
-          <div class="flex items-start justify-between">
-            <div>
-              <h4 class="font-bold text-white text-sm">${st.station}</h4>
-              <p class="text-[11px] text-slate-400">${st.zone}</p>
+          <div>
+            <div class="flex items-start justify-between">
+              <div>
+                <h4 class="font-bold text-white text-sm">${st.station}</h4>
+                <p class="text-[11px] text-slate-400">${st.zone}</p>
+                <div class="text-[10px] text-slate-400 font-mono mt-0.5" title="Station Coordinates vs CAMS Grid Coordinates">
+                  <span>Coord: ${stCoord}</span>
+                  <span class="block text-cyan-400/80">Grid: ${gridCoord}</span>
+                </div>
+              </div>
+              <span class="text-xs px-2 py-0.5 rounded-full font-bold font-mono" style="background-color: ${cat.color}25; color: ${cat.color}; border: 1px solid ${cat.color}50;">
+                AQI ${st.aqi}
+              </span>
             </div>
-            <span class="text-xs px-2 py-0.5 rounded-full font-bold font-mono" style="background-color: ${cat.color}25; color: ${cat.color}; border: 1px solid ${cat.color}50;">
-              AQI ${st.aqi}
-            </span>
+
+            <div class="space-y-1 mt-3">
+              <div class="flex justify-between text-[11px] text-slate-400">
+                <span>Category: <strong style="color: ${cat.color}">${cat.level}</strong></span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                <div class="h-1.5 rounded-full" style="width: ${Math.min(100, (st.aqi / 300) * 100)}%; background-color: ${cat.color}"></div>
+              </div>
+            </div>
           </div>
 
-          <div class="space-y-1">
-            <div class="flex justify-between text-[11px] text-slate-400">
-              <span>Category: <strong style="color: ${cat.color}">${cat.level}</strong></span>
-            </div>
-            <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-              <div class="h-1.5 rounded-full" style="width: ${Math.min(100, (st.aqi / 300) * 100)}%; background-color: ${cat.color}"></div>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-3 gap-1.5 pt-1 text-center">
+          <div class="grid grid-cols-4 gap-1 pt-1 text-center">
             <div class="bg-slate-900/80 rounded p-1 border border-slate-800/80">
-              <div class="text-[10px] text-slate-400 font-mono">PM2.5</div>
-              <div class="text-xs font-semibold text-slate-200 font-mono">${st.pollutants?.pm2_5?.value || '--'}</div>
+              <div class="text-[9px] text-slate-400 font-mono">PM2.5</div>
+              <div class="text-xs font-semibold text-slate-200 font-mono">${st.pollutants?.pm2_5?.value ?? '--'}</div>
             </div>
             <div class="bg-slate-900/80 rounded p-1 border border-slate-800/80">
-              <div class="text-[10px] text-slate-400 font-mono">PM10</div>
-              <div class="text-xs font-semibold text-slate-200 font-mono">${st.pollutants?.pm10?.value || '--'}</div>
+              <div class="text-[9px] text-slate-400 font-mono">PM10</div>
+              <div class="text-xs font-semibold text-slate-200 font-mono">${st.pollutants?.pm10?.value ?? '--'}</div>
             </div>
             <div class="bg-slate-900/80 rounded p-1 border border-slate-800/80">
-              <div class="text-[10px] text-slate-400 font-mono">NO₂</div>
-              <div class="text-xs font-semibold text-slate-200 font-mono">${st.pollutants?.nitrogen_dioxide?.value || '--'}</div>
+              <div class="text-[9px] text-slate-400 font-mono">NO₂</div>
+              <div class="text-xs font-semibold text-slate-200 font-mono">${st.pollutants?.nitrogen_dioxide?.value ?? '--'}</div>
+            </div>
+            <div class="bg-slate-900/80 rounded p-1 border border-slate-800/80">
+              <div class="text-[9px] text-slate-400 font-mono">CO</div>
+              <div class="text-xs font-semibold text-cyan-300 font-mono">${st.pollutants?.carbon_monoxide?.value ?? '--'}</div>
             </div>
           </div>
         `;
@@ -384,9 +519,10 @@ def get_dashboard_html() -> str:
       });
     }
 
-    async function loadTrend(station) {
+    async function loadTrend(station, force = false) {
       try {
-        const res = await fetch('/api/v1/air-quality/history?station=' + encodeURIComponent(station));
+        const url = '/api/v1/air-quality/history?station=' + encodeURIComponent(station) + (force ? '&force_refresh=true' : '');
+        const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
         renderChart(data.trend || []);
@@ -459,8 +595,8 @@ def get_dashboard_html() -> str:
 
     // Auto-load on page ready & periodic refresh every 60s
     document.addEventListener('DOMContentLoaded', () => {
-      loadData();
-      setInterval(loadData, 60000);
+      loadData(false);
+      setInterval(() => loadData(false), 60000);
     });
   </script>
 </body>

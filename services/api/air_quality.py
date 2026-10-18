@@ -151,6 +151,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "West Mumbai",
             "latitude": 19.0596,
             "longitude": 72.8295,
+            "grid_latitude": 19.1,
+            "grid_longitude": 72.8,
             "aqi": 168,
             "category": get_aqi_category(168),
             "pollutants": {
@@ -168,6 +170,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "South Mumbai",
             "latitude": 18.9067,
             "longitude": 72.8147,
+            "grid_latitude": 18.9,
+            "grid_longitude": 72.8,
             "aqi": 142,
             "category": get_aqi_category(142),
             "pollutants": {
@@ -185,6 +189,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "Central Mumbai",
             "latitude": 19.0726,
             "longitude": 72.8845,
+            "grid_latitude": 19.1,
+            "grid_longitude": 72.9,
             "aqi": 185,
             "category": get_aqi_category(185),
             "pollutants": {
@@ -202,6 +208,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "South-Central Mumbai",
             "latitude": 19.0178,
             "longitude": 72.8178,
+            "grid_latitude": 19.0,
+            "grid_longitude": 72.8,
             "aqi": 135,
             "category": get_aqi_category(135),
             "pollutants": {
@@ -219,6 +227,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "Central Mumbai",
             "latitude": 19.0662,
             "longitude": 72.8687,
+            "grid_latitude": 19.1,
+            "grid_longitude": 72.9,
             "aqi": 178,
             "category": get_aqi_category(178),
             "pollutants": {
@@ -236,6 +246,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "North-West Mumbai",
             "latitude": 19.1136,
             "longitude": 72.8697,
+            "grid_latitude": 19.1,
+            "grid_longitude": 72.9,
             "aqi": 160,
             "category": get_aqi_category(160),
             "pollutants": {
@@ -253,6 +265,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "North Mumbai",
             "latitude": 19.2307,
             "longitude": 72.8567,
+            "grid_latitude": 19.2,
+            "grid_longitude": 72.9,
             "aqi": 128,
             "category": get_aqi_category(128),
             "pollutants": {
@@ -270,6 +284,8 @@ def get_historical_baseline() -> dict[str, Any]:
             "zone": "East / Navi Mumbai",
             "latitude": 19.0771,
             "longitude": 72.9986,
+            "grid_latitude": 19.1,
+            "grid_longitude": 73.0,
             "aqi": 172,
             "category": get_aqi_category(172),
             "pollutants": {
@@ -290,10 +306,15 @@ def get_historical_baseline() -> dict[str, Any]:
     return {
         "status": "success",
         "data_mode": "historical_fallback",
+        "data_type": "Historical Baseline Reference (Offline/Fallback Mode)",
         "data_source": "Verified Mumbai Historical Baseline Snapshot (Offline/Fallback Mode)",
         "attribution": "Historical reference baseline derived from CAMS / Copernicus Atmosphere Monitoring Service",
         "sdg_target": "SDG 3.9: Substantially reduce deaths and illnesses from hazardous chemicals and air pollution",
         "timestamp": now_iso,
+        "observation_time": "Historical Reference Period",
+        "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S+05:30"),
+        "is_stale": False,
+        "stale_reason": "",
         "city": "Mumbai",
         "country": "India",
         "station_count": len(stations_data),
@@ -301,6 +322,23 @@ def get_historical_baseline() -> dict[str, Any]:
         "city_category": get_aqi_category(avg_aqi),
         "stations": stations_data,
     }
+
+
+DEFAULT_CACHE_TTL_SECONDS = 300.0  # 5 minutes cache TTL
+
+_air_quality_cache: dict[str, Any] = {
+    "data": None,
+    "timestamp": 0.0,
+}
+
+_trend_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
+def clear_air_quality_cache() -> None:
+    """Clear in-memory AQI and trend caches (useful for testing and debugging)."""
+    _air_quality_cache["data"] = None
+    _air_quality_cache["timestamp"] = 0.0
+    _trend_cache.clear()
 
 
 def _update_prometheus_metrics(stations: list[dict[str, Any]]) -> None:
@@ -320,10 +358,83 @@ def _update_prometheus_metrics(stations: list[dict[str, Any]]) -> None:
             logger.debug("metric emission error: %s", exc)
 
 
+def _handle_failure_or_cached(reason: str) -> dict[str, Any]:
+    """Return stale cached telemetry if available, otherwise return historical baseline."""
+    if _air_quality_cache["data"] is not None:
+        cached = dict(_air_quality_cache["data"])
+        cached["is_stale"] = True
+        cached["stale_reason"] = reason
+        return cached
+    baseline = get_historical_baseline()
+    _update_prometheus_metrics(baseline["stations"])
+    return baseline
+
+
+def _parse_station_payload(
+    station_names: list[str], payload: list[dict[str, Any]], now_iso: str
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Parse raw Open-Meteo station items into normalized station records."""
+    stations_data = []
+    obs_time = None
+    for name, item in zip(station_names, payload):
+        cur = item.get("current", {})
+        us_aqi = cur.get("us_aqi") or 100
+        zone = MUMBAI_STATIONS[name]["zone"]
+        lat = MUMBAI_STATIONS[name]["latitude"]
+        lon = MUMBAI_STATIONS[name]["longitude"]
+        grid_lat = item.get("latitude", round(lat, 1))
+        grid_lon = item.get("longitude", round(lon, 1))
+        st_time = cur.get("time")
+        if obs_time is None and st_time:
+            obs_time = st_time
+
+        stations_data.append(
+            {
+                "station": name,
+                "zone": zone,
+                "latitude": lat,
+                "longitude": lon,
+                "grid_latitude": grid_lat,
+                "grid_longitude": grid_lon,
+                "aqi": us_aqi,
+                "category": get_aqi_category(us_aqi),
+                "pollutants": {
+                    "pm2_5": {"value": cur.get("pm2_5", 0.0), "unit": "μg/m³"},
+                    "pm10": {"value": cur.get("pm10", 0.0), "unit": "μg/m³"},
+                    "nitrogen_dioxide": {
+                        "value": cur.get("nitrogen_dioxide", 0.0),
+                        "unit": "μg/m³",
+                    },
+                    "sulphur_dioxide": {
+                        "value": cur.get("sulphur_dioxide", 0.0),
+                        "unit": "μg/m³",
+                    },
+                    "carbon_monoxide": {
+                        "value": cur.get("carbon_monoxide", 0.0),
+                        "unit": "μg/m³",
+                    },
+                    "ozone": {"value": cur.get("ozone", 0.0), "unit": "μg/m³"},
+                },
+                "timestamp": st_time or now_iso,
+            }
+        )
+    return stations_data, obs_time
+
+
 async def fetch_air_quality(
     client: httpx.AsyncClient | None = None,
+    force_refresh: bool = False,
+    cache_ttl: float = DEFAULT_CACHE_TTL_SECONDS,
 ) -> dict[str, Any]:
-    """Fetch live air quality data for Mumbai stations via Open-Meteo, falling back gracefully."""
+    """Fetch live air quality data for Mumbai stations via Open-Meteo, with caching and fallback."""
+    now_ts = time.time()
+    if (
+        not force_refresh
+        and _air_quality_cache["data"] is not None
+        and (now_ts - _air_quality_cache["timestamp"]) < cache_ttl
+    ):
+        return dict(_air_quality_cache["data"])
+
     station_names = list(MUMBAI_STATIONS.keys())
     lats = [str(MUMBAI_STATIONS[name]["latitude"]) for name in station_names]
     lons = [str(MUMBAI_STATIONS[name]["longitude"]) for name in station_names]
@@ -337,73 +448,51 @@ async def fetch_air_quality(
 
     should_close = False
     if client is None:
-        client = httpx.AsyncClient(timeout=4.0)
+        client = httpx.AsyncClient(timeout=5.0)
         should_close = True
 
     try:
         resp = await client.get(url)
         if resp.status_code != 200:
             logger.warning(
-                "Open-Meteo API returned HTTP %s; using baseline", resp.status_code
+                "Open-Meteo API returned HTTP %s; evaluating cache or baseline",
+                resp.status_code,
             )
-            return get_historical_baseline()
+            return _handle_failure_or_cached(
+                f"Open-Meteo API returned HTTP {resp.status_code}; serving cached telemetry"
+            )
 
         payload = resp.json()
         if not isinstance(payload, list) or len(payload) != len(station_names):
-            logger.warning("Unexpected API response structure; using baseline")
-            return get_historical_baseline()
-
-        now_iso = time.strftime("%Y-%m-%dT%H:00:00+05:30")
-        stations_data = []
-
-        for name, item in zip(station_names, payload):
-            cur = item.get("current", {})
-            us_aqi = cur.get("us_aqi") or 100
-            zone = MUMBAI_STATIONS[name]["zone"]
-            lat = MUMBAI_STATIONS[name]["latitude"]
-            lon = MUMBAI_STATIONS[name]["longitude"]
-
-            stations_data.append(
-                {
-                    "station": name,
-                    "zone": zone,
-                    "latitude": lat,
-                    "longitude": lon,
-                    "aqi": us_aqi,
-                    "category": get_aqi_category(us_aqi),
-                    "pollutants": {
-                        "pm2_5": {"value": cur.get("pm2_5", 0.0), "unit": "μg/m³"},
-                        "pm10": {"value": cur.get("pm10", 0.0), "unit": "μg/m³"},
-                        "nitrogen_dioxide": {
-                            "value": cur.get("nitrogen_dioxide", 0.0),
-                            "unit": "μg/m³",
-                        },
-                        "sulphur_dioxide": {
-                            "value": cur.get("sulphur_dioxide", 0.0),
-                            "unit": "μg/m³",
-                        },
-                        "carbon_monoxide": {
-                            "value": cur.get("carbon_monoxide", 0.0),
-                            "unit": "μg/m³",
-                        },
-                        "ozone": {"value": cur.get("ozone", 0.0), "unit": "μg/m³"},
-                    },
-                    "timestamp": cur.get("time", now_iso),
-                }
+            logger.warning(
+                "Unexpected API response structure; evaluating cache or baseline"
+            )
+            return _handle_failure_or_cached(
+                "Malformed API response received; serving cached telemetry"
             )
 
+        now_iso = time.strftime("%Y-%m-%dT%H:00:00+05:30")
+        stations_data, obs_time = _parse_station_payload(
+            station_names, payload, now_iso
+        )
         aqi_values = [s["aqi"] for s in stations_data]
         avg_aqi = round(sum(aqi_values) / len(aqi_values), 1)
 
         _update_prometheus_metrics(stations_data)
 
-        return {
+        result = {
             "status": "success",
             "data_mode": "live",
+            "data_type": "Spatial Grid Assimilation (CAMS / ECMWF Model, 11 km resolution)",
             "data_source": "Open-Meteo Air Quality Open Data API (Live)",
             "attribution": "Data provided by Open-Meteo Air Quality API / Copernicus Atmosphere Monitoring Service (CAMS)",
             "sdg_target": "SDG 3.9: Substantially reduce deaths and illnesses from hazardous chemicals and air pollution",
             "timestamp": now_iso,
+            "observation_time": obs_time or now_iso,
+            "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S+05:30"),
+            "cache_ttl_seconds": cache_ttl,
+            "is_stale": False,
+            "stale_reason": "",
             "city": "Mumbai",
             "country": "India",
             "station_count": len(stations_data),
@@ -411,14 +500,17 @@ async def fetch_air_quality(
             "city_category": get_aqi_category(avg_aqi),
             "stations": stations_data,
         }
+        _air_quality_cache["data"] = result
+        _air_quality_cache["timestamp"] = now_ts
+        return result
 
     except Exception as exc:
         logger.warning(
-            "Error fetching live air quality: %s; falling back to baseline", exc
+            "Error fetching live air quality: %s; evaluating cache or baseline", exc
         )
-        baseline = get_historical_baseline()
-        _update_prometheus_metrics(baseline["stations"])
-        return baseline
+        return _handle_failure_or_cached(
+            f"Upstream API temporary issue: {exc}. Serving cached telemetry."
+        )
     finally:
         if should_close:
             await client.aclose()
@@ -427,8 +519,16 @@ async def fetch_air_quality(
 async def fetch_station_trend(
     station_name: str = "Bandra",
     client: httpx.AsyncClient | None = None,
+    force_refresh: bool = False,
+    cache_ttl: float = DEFAULT_CACHE_TTL_SECONDS,
 ) -> dict[str, Any]:
-    """Fetch 24-hour historical hourly trend for a specific Mumbai station."""
+    """Fetch 24-hour historical hourly trend for a specific Mumbai station with caching."""
+    now_ts = time.time()
+    if not force_refresh and station_name in _trend_cache:
+        cached_ts, cached_data = _trend_cache[station_name]
+        if (now_ts - cached_ts) < cache_ttl:
+            return dict(cached_data)
+
     station = MUMBAI_STATIONS.get(station_name, MUMBAI_STATIONS["Bandra"])
     url = (
         "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -440,7 +540,7 @@ async def fetch_station_trend(
 
     should_close = False
     if client is None:
-        client = httpx.AsyncClient(timeout=4.0)
+        client = httpx.AsyncClient(timeout=5.0)
         should_close = True
 
     try:
@@ -467,19 +567,34 @@ async def fetch_station_trend(
                     }
                 )
 
-            return {
+            res = {
                 "status": "success",
                 "station": station["name"],
                 "zone": station["zone"],
                 "data_mode": "live",
+                "data_type": "Hourly Model Series (CAMS / ECMWF)",
+                "observation_time": (
+                    times[-1] if times else time.strftime("%Y-%m-%dT%H:00:00+05:30")
+                ),
+                "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S+05:30"),
+                "is_stale": False,
                 "trend": points,
             }
+            _trend_cache[station_name] = (now_ts, res)
+            return res
     except Exception as exc:
-        logger.debug("Trend API fetch failed: %s; generating fallback trend", exc)
+        logger.debug(
+            "Trend API fetch failed: %s; evaluating cache or fallback trend", exc
+        )
 
     finally:
         if should_close:
             await client.aclose()
+
+    if station_name in _trend_cache:
+        cached = dict(_trend_cache[station_name][1])
+        cached["is_stale"] = True
+        return cached
 
     # Generate synthetic 24h baseline trend anchored on current baseline station data
     baseline = get_historical_baseline()
@@ -508,10 +623,15 @@ async def fetch_station_trend(
             }
         )
 
-    return {
+    res_fallback = {
         "status": "success",
         "station": station["name"],
         "zone": station["zone"],
         "data_mode": "historical_fallback",
+        "data_type": "Historical Baseline Trend (Offline Mode)",
+        "observation_time": "Historical Reference Period",
+        "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S+05:30"),
+        "is_stale": False,
         "trend": points,
     }
+    return res_fallback

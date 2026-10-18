@@ -87,8 +87,10 @@ def index() -> dict:
         "service": "SENTINEL API Gateway",
         "sdg_project": "Mumbai Air Quality Telemetry (UN SDG 3: Good Health and Well-being)",
         "dashboard_url": "/dashboard",
-        "air_quality_api": "/api/v1/air-quality/latest",
+        "air_quality_api": "/api/v1/air-quality",
+        "air_quality_latest": "/api/v1/air-quality/latest",
         "incidents_api": "/api/v1/incidents/latest",
+        "incidents_latest": "/incidents/latest",
         "metrics": "/metrics",
         "health": "/healthz",
     }
@@ -99,14 +101,17 @@ def get_dashboard() -> str:
     return get_dashboard_html()
 
 
+@app.get("/api/v1/air-quality")
 @app.get("/api/v1/air-quality/latest")
-async def air_quality_latest() -> dict:
-    return await fetch_air_quality()
+async def air_quality_latest(force_refresh: bool = False) -> dict:
+    return await fetch_air_quality(force_refresh=force_refresh)
 
 
 @app.get("/api/v1/air-quality/history")
-async def air_quality_history(station: str = "Bandra") -> dict:
-    return await fetch_station_trend(station_name=station)
+async def air_quality_history(
+    station: str = "Bandra", force_refresh: bool = False
+) -> dict:
+    return await fetch_station_trend(station_name=station, force_refresh=force_refresh)
 
 
 @app.get("/healthz")
@@ -114,6 +119,7 @@ def healthz() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/incidents/latest")
 @app.get("/api/v1/incidents/latest")
 def latest_incident() -> dict:
     incident = store.latest()
