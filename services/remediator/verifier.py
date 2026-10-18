@@ -226,7 +226,8 @@ class HealthVerifier:
 
             signals["k8s_ready_replicas"] = ready_replicas
             signals["k8s_spec_replicas"] = spec_replicas
-            if ready_replicas < spec_replicas or unavailable:
+            signals["k8s_unavailable_replicas"] = unavailable
+            if ready_replicas < spec_replicas:
                 unhealthy.append(
                     f"k8s deployment not ready ({ready_replicas}/{spec_replicas} ready)"
                 )
