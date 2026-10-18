@@ -1,0 +1,143 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "title": "Mumbai Air Quality & SDG 3 Health Telemetry",
+  "description": "Real-time air quality metrics and pollutant concentrations across 8 Mumbai stations aligned with UN SDG 3 (Target 3.9).",
+  "schemaVersion": 16,
+  "version": 1,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "City Average AQI",
+      "description": "Average US AQI across all monitored Mumbai stations.",
+      "targets": [
+        {
+          "expr": "avg(sentinel_air_quality_aqi)",
+          "legendFormat": "Average AQI"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "orange", "value": 100},
+              {"color": "red", "value": 150},
+              {"color": "purple", "value": 200},
+              {"color": "dark-red", "value": 300}
+            ]
+          }
+        }
+      },
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 6}
+    },
+    {
+      "type": "stat",
+      "title": "Average PM2.5 (μg/m³)",
+      "description": "Average fine inhalable particulate matter across stations.",
+      "targets": [
+        {
+          "expr": "avg(sentinel_air_quality_pm25)",
+          "legendFormat": "Average PM2.5"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µg/m³",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 30},
+              {"color": "orange", "value": 60},
+              {"color": "red", "value": 90}
+            ]
+          }
+        }
+      },
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 6}
+    },
+    {
+      "type": "stat",
+      "title": "Average PM10 (μg/m³)",
+      "description": "Average coarse particulate matter across stations.",
+      "targets": [
+        {
+          "expr": "avg(sentinel_air_quality_pm10)",
+          "legendFormat": "Average PM10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "µg/m³",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "orange", "value": 100},
+              {"color": "red", "value": 150}
+            ]
+          }
+        }
+      },
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 6}
+    },
+    {
+      "type": "bargauge",
+      "title": "Station AQI Comparison",
+      "description": "Current Air Quality Index by monitoring station.",
+      "targets": [
+        {
+          "expr": "sentinel_air_quality_aqi",
+          "legendFormat": "{{station}} ({{zone}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 350,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 50},
+              {"color": "orange", "value": 100},
+              {"color": "red", "value": 150},
+              {"color": "purple", "value": 200},
+              {"color": "dark-red", "value": 300}
+            ]
+          }
+        }
+      },
+      "gridPos": {"x": 0, "y": 6, "w": 24, "h": 8}
+    },
+    {
+      "type": "graph",
+      "title": "PM2.5 Concentrations by Station",
+      "description": "Fine particulate matter per station in μg/m³.",
+      "targets": [
+        {
+          "expr": "sentinel_air_quality_pm25",
+          "legendFormat": "{{station}}"
+        }
+      ],
+      "gridPos": {"x": 0, "y": 14, "w": 12, "h": 7}
+    },
+    {
+      "type": "graph",
+      "title": "PM10 Concentrations by Station",
+      "description": "Respirable dust PM10 per station in μg/m³.",
+      "targets": [
+        {
+          "expr": "sentinel_air_quality_pm10",
+          "legendFormat": "{{station}}"
+        }
+      ],
+      "gridPos": {"x": 12, "y": 14, "w": 12, "h": 7}
+    }
+  ]
+}
