@@ -19,6 +19,146 @@ kubectl -n argocd get application sentinel
 
 The final `kubectl` command is inspection only. Changes to workloads belong in Git and are reconciled by ArgoCD.
 
+## Deploying to GKE
+
+This is a genuinely separate path from local Kind, not a flag on the same
+one. `infra/terraform-gke/` is its own Terraform root (not a toggle inside
+`infra/terraform/`) deliberately: the `google` provider authenticates
+eagerly at plan/apply time even for a resource that ends up unused, which
+would have required GCP credentials just to run a local `terraform plan` -
+keeping it a separate root means the local Kind workflow above is
+completely unaffected by any of this (verified: `terraform plan` in
+`infra/terraform/` still shows zero `google` provider involvement).
+
+**One-time setup:**
+```bash
+gcloud auth application-default login
+gcloud services enable container.googleapis.com --project=<your-project-id>
+```
+
+**Provision the cluster** (GKE Autopilot - Google manages node pools, so
+there's no node sizing/count to configure):
+```bash
+make gke-apply GCP_PROJECT_ID=<your-project-id>
+make gke-bootstrap
+```
+`gke-bootstrap` runs Terraform's own `next_step` output - it chains
+`gcloud container clusters get-credentials` (points `kubectl` at the new
+cluster) with `scripts/bootstrap-argocd.sh sentinel gke` (the `gke` arg
+skips the Kind-specific `kubectl config use-context "kind-*"` call, since
+`gcloud` already set the right context).
+
+**Images: `kind load docker-image` doesn't exist on GKE.** Every
+Deployment currently points at `sentinel/<service>:dev`, a tag that only
+exists because it's loaded directly into Kind's nodes - GKE nodes can only
+pull from a real registry. Before ArgoCD can bring any workload up on GKE:
+
+1. Confirm the GHCR packages CI already builds (`ghcr.io/vimla01/sentinel/<service>:<git-sha>`)
+   are public, or create an `imagePullSecret` from a GitHub PAT with
+   `read:packages` and reference it in each Deployment - not yet done or
+   verified here.
+2. Promote each service's manifest to point at a real tag:
+   ```bash
+   scripts/promote-image.sh all ghcr.io/vimla01/sentinel
+   ```
+3. Commit and push - ArgoCD only deploys what's in Git.
+
+**One upside of the real cluster**: Slack's webhook can reach `remediator`
+through GKE's own LoadBalancer/Ingress directly - no `cloudflared` tunnel
+needed, unlike the local Kind setup
+([Slack Approvals](#slack-approvals--external-reachability) above still
+applies for anyone running this locally).
+
+**Tear down** (this costs real money while it's up):
+```bash
+make gke-destroy GCP_PROJECT_ID=<your-project-id>
+```
+
+## Deploying to AKS
+
+A separate Terraform root again (`infra/terraform-azure/`), for the same
+reason as GKE: `azurerm` authenticates eagerly too, so it can't be a toggle
+inside the local Kind setup without risking everyone's local `terraform
+plan`.
+
+This path exists specifically for **Azure for Students**
+(`azure.microsoft.com/free/students`) - $100 credit, no credit card
+required with a valid academic email, unlike GCP/AWS free trials which both
+require one for billing verification regardless of whether you're a student.
+
+**One-time setup:**
+```bash
+az login
+```
+
+**Provision the cluster** (AKS's control plane is free, unlike EKS - only
+the node pool's VM is billed; defaults to one small `Standard_B2s` node to
+stay well within a student credit):
+```bash
+make azure-apply
+make azure-bootstrap
+```
+`azure-bootstrap` chains `az aks get-credentials` with
+`scripts/bootstrap-argocd.sh sentinel azure` (same `kind`-context-skip
+mechanism the `gke` arg uses).
+
+**Images**: same caveat as GKE - `kind load docker-image` doesn't exist on
+AKS either. Promote the manifests to real registry tags first:
+```bash
+scripts/promote-image.sh all ghcr.io/vimla01/sentinel
+```
+then commit and push, since ArgoCD only deploys what's in Git. Confirm the
+GHCR packages are public, or configure an `imagePullSecret` from a GitHub
+PAT - not yet done or verified here.
+
+**Tear down** (this uses real credit while it's up):
+```bash
+make azure-destroy
+```
+
+## Deploying to EKS
+
+A third separate Terraform root (`infra/terraform-aws/`), same reasoning as
+the other two. EKS is meaningfully more involved than GKE Autopilot or AKS -
+it needs a VPC with multi-AZ subnets plus IAM roles for the control plane
+and node group, none of which the other two clouds required. This uses the
+community `terraform-aws-modules/vpc` and `terraform-aws-modules/eks`
+modules rather than hand-rolling that infrastructure - they're the de facto
+standard for EKS on Terraform, referenced in AWS's own docs, and
+dramatically reduce the chance of misconfiguration on something this
+complex.
+
+**Cost note that doesn't apply to GKE/AKS**: EKS's control plane itself is
+billed (~$0.10/hour, ~$73/month) independent of node costs - GKE Autopilot's
+and AKS's control planes are both free. Destroy this promptly after use,
+not just when convenient.
+
+**One-time setup:**
+```bash
+aws configure
+```
+
+**Provision the cluster** (single small `t3.small` node, to stretch a
+limited credit):
+```bash
+make aws-apply
+make aws-bootstrap
+```
+`aws-bootstrap` chains `aws eks update-kubeconfig` with
+`scripts/bootstrap-argocd.sh sentinel aws`.
+
+**Images**: same caveat as GKE/AKS - no `kind load` equivalent on EKS either:
+```bash
+scripts/promote-image.sh all ghcr.io/vimla01/sentinel
+```
+then commit and push.
+
+**Tear down** (do this as soon as you're done - the control plane bills by
+the hour regardless of whether anything is running on it):
+```bash
+make aws-destroy
+```
+
 ## Ollama model & Persistent Storage
 
 The `ollama` deployment uses a dedicated PersistentVolumeClaim (`ollama-models`, `infra/k8s/apps/ollama/pvc.yaml`) mounted at `/root/.ollama`. Kind's default `local-path-provisioner` provisions the volume automatically.

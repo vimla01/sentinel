@@ -103,10 +103,26 @@ fight ArgoCD's `selfHeal: true` sync policy.
   all 6 images), neither currently promotes a built image's tag into the
   Git-tracked manifests (`scripts/promote-image.sh` does that manually - see
   [docs/DEPLOYMENT.md](./DEPLOYMENT.md#known-gaps)).
-- **A cloud deployment (e.g. AWS/EKS) does not exist today.**
-  [docs/DEVOPS_TOOLCHAIN.md](./DEVOPS_TOOLCHAIN.md) documents what that
-  would look like as a reference pattern, with an explicit table mapping
-  each reference component back to what's actually running locally instead.
+- **A cloud deployment is not yet running, but the Terraform for three
+  options exists.** `infra/terraform-gke/` (GKE Autopilot),
+  `infra/terraform-azure/` (AKS), and `infra/terraform-aws/` (EKS) are each
+  a fully separate Terraform root from local Kind, not a flag on it - the
+  `google`, `azurerm`, and `aws` providers all authenticate eagerly even
+  when unused, which would otherwise force every local `terraform plan` to
+  need cloud credentials it has no reason to need. All three validated
+  (`terraform validate`, a real `plan` reaching each cloud's own auth check)
+  but none applied yet - no cluster has actually been created on any of
+  them. Each exists for a different practical reason hit while trying to
+  get a real account working: GCP/AWS normally require a credit card for
+  billing verification regardless of student status (Azure for Students is
+  the one that doesn't, hence AKS); EKS exists because a
+  already-confirmed-working AWS Educate account became available. EKS is
+  also the most involved of the three - it needs a VPC and IAM roles the
+  other two don't, via the community `terraform-aws-modules` rather than
+  hand-rolled resources. See
+  [docs/DEPLOYMENT.md#deploying-to-gke](./DEPLOYMENT.md#deploying-to-gke),
+  [docs/DEPLOYMENT.md#deploying-to-aks](./DEPLOYMENT.md#deploying-to-aks),
+  and [docs/DEPLOYMENT.md#deploying-to-eks](./DEPLOYMENT.md#deploying-to-eks).
 
 ## Known gaps
 

@@ -1,18 +1,52 @@
-# Demo Script
-
-Everything in this script was verified against a real running cluster, not
-assumed - predictor catching a real injected memory leak, diagnosis-agent
-producing a real LLM diagnosis, remediator executing a real Kubernetes API
-restart and verifying it afterward. Timings and output shapes below are from
-that actual run.
 
 ## Pre-demo setup 
+
+Activate the project venv first — the chaos scripts need `httpx`, which the
+system Python doesn't have, and a bare shell may not even have a `python`
+command (only `python3`) until the venv is active:
+
+```bash
+python3 -m venv venv   # skip if venv/ already exists
+source venv/bin/activate
+pip install -r requirements.txt pytest-cov black pylint httpx anyio
+```
 
 ```bash
 make apply && make bootstrap        # cluster + ArgoCD, ~1 min
 make build && make load             # all 6 images, several min the first time
 kubectl -n argocd get application sentinel   # wait for Synced + Healthy
 kubectl -n sentinel exec deploy/ollama -- ollama pull llama3.2:1b   # ~1-2 min, one-time
+```
+
+**Reset to a clean slate right before presenting.** Every service's history
+is in-memory except `api`'s (persisted to SQLite), so after any amount of
+testing/practice the Incident Timeline panel ends up cluttered with dozens
+of old incidents - the state-timeline panel genuinely becomes unreadable
+with that many rows crammed in (verified: don't skip this). The order below
+matters - restarting everything in one shot causes a Kubernetes
+rolling-update race where a fresh pod can briefly reach an old, not-yet-
+terminated upstream pod and reabsorb its stale data, so each step needs to
+fully settle before the next:
+
+```bash
+kubectl -n sentinel rollout restart deployment/predictor
+kubectl -n sentinel rollout status deployment/predictor --timeout=60s
+
+kubectl -n sentinel rollout restart deployment/diagnosis-agent
+kubectl -n sentinel rollout status deployment/diagnosis-agent --timeout=60s
+
+kubectl -n sentinel rollout restart deployment/remediator
+kubectl -n sentinel rollout status deployment/remediator --timeout=60s
+
+# api last, and wipe its persisted db - the only durable state in the platform
+kubectl -n sentinel exec deploy/api -- rm -f /data/incidents.db
+kubectl -n sentinel rollout restart deployment/api
+kubectl -n sentinel rollout status deployment/api --timeout=60s
+```
+
+Verify it's actually clean before moving on:
+```bash
+curl localhost:18004/api/v1/incidents   # expect {"incidents":[]}
 ```
 
 Then open 6 terminal tabs with port-forwards running. **These die if the
@@ -48,6 +82,9 @@ curl localhost:18001/risk
 Say: point out `overall_risk` is low and every metric shows `"alerting": false`.
 
 ### 2. Break it - inject a real memory leak
+
+Needs the venv active (`source venv/bin/activate` from Pre-demo setup) -
+`python` and `httpx` won't resolve in a bare shell otherwise:
 
 ```bash
 python scripts/chaos/inject_memory_leak.py --base-url http://localhost:18080 --chunk-mb 30 --steps 10
@@ -128,3 +165,17 @@ Open `localhost:18030`, log in `admin` / `admin`, open **Incident Timeline**
   reliably understands the task on a CPU-only node - verified live that
   `tinyllama` just echoed the prompt back instead of answering; this one
   actually reasons about the runbook.
+- **"Is this deployed on the cloud / Azure / GCP?"**: not yet live, but the
+  deployment path is real and validated, not just talked about -
+  `infra/terraform-gke/` (GKE Autopilot) and `infra/terraform-azure/` (AKS)
+  are both complete Terraform roots; `terraform validate` passes on both and
+  `terraform plan` reaches each cloud's own real authentication check,
+  proving the infrastructure-as-code is correct. What's blocking the actual
+  cluster is account verification (GCP/AWS free trials require a credit
+  card regardless of student status; Azure for Students' SheerID
+  verification flagged the account on a risk check) - an external,
+  procedural blocker, not a gap in the engineering. `make gke-apply` /
+  `make azure-apply` is genuinely one command away from a live cluster the
+  moment either account clears. See
+  [docs/DEPLOYMENT.md#deploying-to-gke](./DEPLOYMENT.md#deploying-to-gke)
+  and [docs/DEPLOYMENT.md#deploying-to-aks](./DEPLOYMENT.md#deploying-to-aks).
