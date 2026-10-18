@@ -5,13 +5,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
 from prometheus_client import REGISTRY
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from .air_quality import fetch_air_quality, fetch_station_trend
 from .config import settings
-from .dashboard_ui import get_dashboard_html
 from .db import IncidentStore
 from .diagnosis_client import DiagnosisAgentClient
 from .predictor_client import PredictorClient
@@ -50,10 +47,6 @@ syncer = IncidentSync(
 async def _poll_forever() -> None:
     while True:
         await syncer.sync_once()
-        try:
-            await fetch_air_quality()
-        except Exception as exc:
-            logger.debug("background air quality poll error: %s", exc)
         await asyncio.sleep(settings.poll_interval_seconds)
 
 
@@ -85,33 +78,11 @@ _instrumentator.expose(app)
 def index() -> dict:
     return {
         "service": "SENTINEL API Gateway",
-        "sdg_project": "Mumbai Air Quality Telemetry (UN SDG 3: Good Health and Well-being)",
-        "dashboard_url": "/dashboard",
-        "air_quality_api": "/api/v1/air-quality",
-        "air_quality_latest": "/api/v1/air-quality/latest",
         "incidents_api": "/api/v1/incidents/latest",
         "incidents_latest": "/incidents/latest",
         "metrics": "/metrics",
         "health": "/healthz",
     }
-
-
-@app.get("/dashboard", response_class=HTMLResponse)
-def get_dashboard() -> str:
-    return get_dashboard_html()
-
-
-@app.get("/api/v1/air-quality")
-@app.get("/api/v1/air-quality/latest")
-async def air_quality_latest(force_refresh: bool = False) -> dict:
-    return await fetch_air_quality(force_refresh=force_refresh)
-
-
-@app.get("/api/v1/air-quality/history")
-async def air_quality_history(
-    station: str = "Bandra", force_refresh: bool = False
-) -> dict:
-    return await fetch_station_trend(station_name=station, force_refresh=force_refresh)
 
 
 @app.get("/healthz")

@@ -47,7 +47,7 @@ SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. I
      App Deployments (K8s)
               │
               ▼
-   ┌───────────────────── ┐
+   ┌──────────────────────┐
    │     Prometheus       │──── metrics
    └──────────┬───────────┘
               │
@@ -58,11 +58,11 @@ SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. I
    └──────────┬──────────┘
               │ alert fires
               ▼
-   ┌─────────────────────┐        ┌─────────────┐
-   │   Loki (logs) +     │───────▶│  LLM Agent  │
-   │  Deploy History     │        │  (Ollama +   │
+   ┌─────────────────────┐        ┌───────────────┐
+   │   Loki (logs) +     │───────▶│  LLM Agent    │
+   │  Deploy History     │        │  (Ollama +    │
    └─────────────────────┘        │  RAG runbooks)│
-                                    └──────┬───────┘
+                                  └──────┬────────┘
                                            │ diagnosis
                               ┌────────────┴────────────┐
                               ▼                         ▼
