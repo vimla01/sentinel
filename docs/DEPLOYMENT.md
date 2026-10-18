@@ -26,10 +26,10 @@ The `ollama` deployment uses a dedicated PersistentVolumeClaim (`ollama-models`,
 Because storage is persistent, the model only needs to be pulled **once per cluster lifetime** and survives pod restarts, evictions, and deployments:
 
 ```bash
-kubectl -n sentinel exec deploy/ollama -- ollama pull tinyllama
+kubectl -n sentinel exec deploy/ollama -- ollama pull llama3.2:1b
 ```
 
-`diagnosis-agent`'s `OLLAMA_MODEL` env var (default `tinyllama`) must match whatever model was pulled.
+`diagnosis-agent`'s `OLLAMA_MODEL` env var (default `llama3.2:1b`) must match whatever model was pulled. Don't substitute `tinyllama` here even though it's smaller/faster: live-testing against a real cluster showed it's too weak for this task - it doesn't reliably extract a grounded root cause from the runbook, it pattern-matches the prompt's own formatting and echoes it back (observed with both the plain-text and Ollama's grammar-constrained JSON mode). `llama3.2:1b` is still small enough for a CPU-only Kind node, genuinely understands the task, and matches what this README already claims ("Ollama + Llama 3").
 
 ## Grafana & Observability Datasources
 
@@ -86,6 +86,79 @@ kubectl -n sentinel create secret generic remediator-slack \
 ```
 
 `remediator`'s `SLACK_CHANNEL` env var (default `#sentinel-incidents`) must be a channel the bot has been invited to. Without this secret, remediator still runs and auto-executes safe actions; only the approval path is skipped.
+
+## Known Gaps
+
+Three things look done but have a real, honest limitation. Each is
+documented here rather than silently fixed, because closing them properly
+needs either a decision (auto-committing from CI to a shared repo) or
+credentials only you can create (a real GitHub deploy key/PAT).
+
+### CI builds images; nothing deploys them
+
+Both `ci.yml` and `Jenkinsfile` build, test, and push images - but nothing
+updates the `image:` tag in `infra/k8s/apps/*/deployment.yaml` and commits
+that back to Git, so ArgoCD never picks up a new build automatically. The
+two halves (CI building, ArgoCD deploying) are disconnected; every
+Deployment still points at a static `sentinel/x:dev` tag loaded locally via
+`kind load docker-image`.
+
+`scripts/promote-image.sh` closes this manually without taking the riskier
+step of having CI auto-commit to `main` on its own (especially with another
+contributor actively pushing to this repo - an unreviewed bot commit landing
+mid-collaboration is exactly the kind of surprise worth avoiding). It only
+edits `infra/k8s` locally and prints a diff; it never commits or pushes:
+
+```bash
+scripts/promote-image.sh api ghcr.io/vimla01/sentinel/api:abc1234
+# or, to promote every service to the current commit's images at once:
+scripts/promote-image.sh all ghcr.io/vimla01/sentinel
+
+git add infra/k8s && git commit -m "deploy: promote image(s)" && git push
+```
+
+Review the diff before committing. ArgoCD picks it up on the next sync once
+pushed.
+
+### Git-native rollback has no credentials to actually push with
+
+`services/remediator/git_client.py` can commit a rollback/scale change
+directly to a local clone at `GIT_REPO_PATH` - but nothing in
+`infra/k8s/apps/remediator/deployment.yaml` mounts a writable clone or push
+credentials into the pod. The code path is real and tested
+(`tests/test_remediator.py::test_engine_git_native_rollback`), but there's
+no secret/volume wiring it up to a real repo yet. To actually enable it:
+
+1. Create a deploy key or fine-grained PAT with push access to this repo
+   (GitHub → Settings → Developer settings).
+2. `kubectl -n sentinel create secret generic remediator-git --from-literal=token=ghp_...`
+3. Add an init container (or startup step) to `remediator`'s Deployment that
+   clones the repo into an `emptyDir` using that credential, and set
+   `GIT_REPO_PATH` to that mount path.
+
+Until that's wired up, rollback still works via ArgoCD's own rollback API
+(`services/remediator/argocd_client.py`) - the git-native path is a
+not-yet-connected enhancement, not a missing fallback.
+
+### The remediator Ingress resource is currently inert
+
+`infra/k8s/apps/remediator/ingress.yaml` exists, but no ingress controller
+is installed anywhere in this cluster setup - so nothing implements it. This
+isn't blocking the Slack demo: the
+[tunnel setup above](#slack-approvals--external-reachability) reaches
+`remediator` directly via `kubectl port-forward`, bypassing Ingress
+entirely, since a local Kind cluster isn't publicly routable regardless of
+whether an ingress controller is present.
+
+To make the Ingress resource do something real (for a non-local
+environment): install `ingress-nginx`'s Kind-specific manifest, add
+`extraPortMappings` for 80/443 to
+`infra/terraform/modules/local-cluster/kind-config.yaml` with
+`node-labels: ingress-ready=true` on the control-plane node, and point a
+real DNS name + TLS cert (e.g. via cert-manager) at it instead of a
+temporary tunnel URL. None of this has been tested against a live cluster
+here - there's no running `sentinel` Kind cluster in this environment to
+verify it against, so treat it as a documented next step, not a verified one.
 
 ## Incident history persistence
 

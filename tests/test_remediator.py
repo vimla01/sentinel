@@ -1,12 +1,15 @@
 import hashlib
 import hmac
+import json
 import subprocess
 import time
+from urllib.parse import urlencode
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from services.remediator import main as remediator_main
 from services.remediator.argocd_client import ArgocdClient
 from services.remediator.engine import RemediationEngine
 from services.remediator.git_client import GitClient
@@ -270,6 +273,64 @@ def test_slack_interactions_rejects_bad_signature() -> None:
         content=b"payload=%7B%7D",
     )
     assert response.status_code == 401
+
+
+def test_remediate_endpoint_rejects_ungrounded_diagnosis() -> None:
+    response = client.post(
+        "/remediate", json={"grounded": False, "recommended_action": ""}
+    )
+    assert response.status_code == 400
+
+
+def test_verify_endpoint_404_for_unknown_remediation() -> None:
+    response = client.post("/remediations/does-not-exist/verify")
+    assert response.status_code == 404
+
+
+def test_remediate_then_deny_via_slack_interactions_endpoint(monkeypatch) -> None:
+    """End-to-end over the real FastAPI app: POST /remediate creates an
+    awaiting_approval remediation (Slack's outbound post fails silently in
+    this offline test env, same as a real network outage - see
+    _request_approval's own try/except), then a signed /slack/interactions
+    deny resolves it. Both legs are network-free: Slack's post never
+    succeeds so slack_channel/slack_ts stay empty, which short-circuits the
+    chat.update call on the deny path too."""
+    monkeypatch.setattr(remediator_main.settings, "slack_signing_secret", "test-secret")
+
+    create_response = client.post(
+        "/remediate",
+        json={
+            "alert": {"metric": "error_rate", "value": 0.5, "fired_at": 1700000099.0},
+            "grounded": True,
+            "runbook_id": "error-rate-bad-deploy",
+            "recommended_action": "roll back to the previous revision",
+            "approval_required": True,
+        },
+    )
+    assert create_response.status_code == 200
+    remediation_id = create_response.json()["id"]
+    assert create_response.json()["status"] == "awaiting_approval"
+
+    payload = {
+        "actions": [{"action_id": "deny", "value": remediation_id}],
+        "user": {"username": "tester"},
+    }
+    body = urlencode({"payload": json.dumps(payload)})
+    timestamp = str(int(time.time()))
+    basestring = f"v0:{timestamp}:{body}".encode()
+    signature = "v0=" + hmac.new(b"test-secret", basestring, hashlib.sha256).hexdigest()
+
+    response = client.post(
+        "/slack/interactions",
+        headers={
+            "X-Slack-Request-Timestamp": timestamp,
+            "X-Slack-Signature": signature,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        content=body.encode(),
+    )
+    assert response.status_code == 200
+    assert response.json() == {"status": "denied"}
 
 
 def test_git_client_is_git_repo(tmp_path) -> None:

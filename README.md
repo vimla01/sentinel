@@ -92,7 +92,7 @@ SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. I
 | **Metrics** | Prometheus |
 | **Logs** | Loki + Promtail |
 | **Dashboards** | Grafana |
-| **Anomaly detection** | scikit-learn / Prophet |
+| **Anomaly detection** | Rolling mean/stddev z-score per metric (`services/predictor`) |
 | **LLM diagnosis agent** | Ollama + Llama 3 (RAG over runbooks) |
 | **Remediation** | Kubernetes API (restart, scale) / ArgoCD rollback API |
 | **Human approval** | Slack bot with interactive buttons |

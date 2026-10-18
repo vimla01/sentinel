@@ -1,3 +1,6 @@
+import importlib
+import json
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +10,7 @@ from services.diagnosis_agent.diagnosis import DiagnosisEngine
 from services.diagnosis_agent.loki_client import LokiClient
 from services.diagnosis_agent.main import app
 from services.diagnosis_agent.ollama_client import OllamaClient
+from services.diagnosis_agent.prompt import parse_response
 from services.diagnosis_agent.retriever import match_runbook, tokenize
 from services.diagnosis_agent.runbooks import load_runbooks
 
@@ -75,6 +79,50 @@ def test_match_runbook_ranks_by_context_overlap() -> None:
     assert match.id == "memory-unbounded-cache-growth"
 
 
+def test_ollama_model_setting_respects_env_var(monkeypatch) -> None:
+    """Regression test: ollama_model was previously hardcoded to a literal
+    string with no os.environ.get call at all, silently ignoring the
+    OLLAMA_MODEL env var the k8s Deployment actually sets - meaning the
+    live cluster's model was never actually configurable."""
+    from services.diagnosis_agent import config as config_module
+
+    try:
+        monkeypatch.setenv("OLLAMA_MODEL", "llama3.2:1b")
+        importlib.reload(config_module)
+        assert config_module.settings.ollama_model == "llama3.2:1b"
+    finally:
+        monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+        importlib.reload(config_module)
+
+
+def test_parse_response_reads_json_object() -> None:
+    text = json.dumps(
+        {
+            "root_cause": "memory grows steadily",
+            "recommended_action": "restart the affected pod",
+            "runbook_cited": "memory-leak-unbounded-growth",
+        }
+    )
+    assert parse_response(text) == (
+        "memory grows steadily",
+        "restart the affected pod",
+        "memory-leak-unbounded-growth",
+    )
+
+
+def test_parse_response_falls_back_to_labeled_lines_when_not_json() -> None:
+    text = "Root Cause: x\nRecommended Action: y\nRunbook Cited: z\n"
+    assert parse_response(text) == ("x", "y", "z")
+
+
+def test_parse_response_returns_all_none_for_pure_echo() -> None:
+    """The failure mode this whole fix targets: a weak model just
+    continuing/echoing the prompt's "##"-header style instead of answering
+    in either format."""
+    text = "## Alert\nmetric: memory_bytes\nvalue: 500000000.0\n"
+    assert parse_response(text) == (None, None, None)
+
+
 def test_tokenize_lowercases_and_strips_punctuation() -> None:
     assert tokenize("CPU-Saturation: Busy Loop!") == ["cpu", "saturation", "busy", "loop"]
 
@@ -118,14 +166,24 @@ async def test_diagnosis_engine_cites_matched_runbook() -> None:
     runbooks = load_runbooks("runbooks")
 
     def ollama_handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/chat"
+        body = json.loads(request.content)
+        assert body["messages"][0]["role"] == "system"
+        assert body["messages"][1]["role"] == "user"
+        assert body["format"] == "json"
         return httpx.Response(
             200,
             json={
-                "response": (
-                    "Root Cause: memory grows steadily with no traffic correlation.\n"
-                    "Recommended Action: restart the affected pod\n"
-                    "Runbook Cited: memory-leak-unbounded-growth\n"
-                )
+                "message": {
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "root_cause": "memory grows steadily with no traffic correlation.",
+                            "recommended_action": "restart the affected pod",
+                            "runbook_cited": "memory-leak-unbounded-growth",
+                        }
+                    ),
+                }
             },
         )
 
@@ -170,7 +228,10 @@ async def test_diagnosis_engine_degrades_gracefully_when_loki_and_argo_unreachab
     runbooks = load_runbooks("runbooks")
 
     def ollama_handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"response": "Root Cause: x\nRecommended Action: y\n"})
+        return httpx.Response(
+            200,
+            json={"message": {"content": "Root Cause: x\nRecommended Action: y\n"}},
+        )
 
     def failing_handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused", request=request)

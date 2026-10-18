@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 COPY services/diagnosis_agent/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir --default-timeout=100 --retries=5 -r /tmp/requirements.txt
 COPY services/__init__.py services/__init__.py
 COPY services/diagnosis_agent/ services/diagnosis_agent/
 COPY runbooks/ runbooks/

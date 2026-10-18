@@ -8,7 +8,7 @@ import httpx
 from .deploy_history import DeployHistoryClient
 from .loki_client import LokiClient
 from .ollama_client import OllamaClient
-from .prompt import build_prompt, parse_response
+from .prompt import SYSTEM_PREAMBLE, build_prompt, parse_response
 from .retriever import match_runbook
 from .runbooks import Runbook
 
@@ -96,7 +96,7 @@ class DiagnosisEngine:
             return diagnosis
 
         prompt = build_prompt(alert, runbook, logs, deploys)
-        raw_response = await self._ollama.generate(prompt)
+        raw_response = await self._ollama.generate(SYSTEM_PREAMBLE, prompt)
         root_cause, recommended_action, cited = parse_response(raw_response)
 
         diagnosis = Diagnosis(

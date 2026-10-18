@@ -1,9 +1,14 @@
 import random
 from collections import deque
 
+from fastapi.testclient import TestClient
+
 from services.predictor.config import settings
+from services.predictor.main import app
 from services.predictor.metrics_client import PrometheusClient
 from services.predictor.monitor import RiskMonitor, evaluate_metric
+
+client = TestClient(app)
 
 
 def _seed_baseline(window: deque, rng: random.Random, base: float = 10.0) -> None:
@@ -69,3 +74,30 @@ def test_overall_risk_reflects_worst_metric() -> None:
     monitor._evaluate("memory_bytes", 50_000_000)
 
     assert monitor.overall_risk() > 0.0
+
+
+def test_healthz() -> None:
+    response = client.get("/healthz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_risk_endpoint_shape() -> None:
+    response = client.get("/risk")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["target"] == settings.target_job
+    assert body["threshold_sigma"] == settings.threshold_sigma
+    assert "overall_risk" in body
+    assert set(body["metrics"].keys()) == {
+        "cpu_percent",
+        "memory_bytes",
+        "latency_seconds",
+        "error_rate",
+    }
+
+
+def test_alerts_endpoint_starts_empty() -> None:
+    response = client.get("/alerts")
+    assert response.status_code == 200
+    assert response.json() == {"alerts": []}

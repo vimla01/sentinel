@@ -1,13 +1,22 @@
+import json
 import re
 
 from .runbooks import Runbook
 
-_SYSTEM_PREAMBLE = (
-    "You are SENTINEL's incident diagnosis assistant. You must ground your "
-    "diagnosis ONLY in the runbook provided below - do not invent root "
-    "causes or remediation steps that are not in it. If the alert and "
-    "evidence do not match the runbook well enough to be confident, say so "
-    "explicitly instead of guessing."
+# Sent as the chat "system" turn (see ollama_client.generate), not prepended
+# to the user turn - keeping instructions and the actual question in
+# separate chat roles helps, but on its own isn't enough for a weak model
+# like tinyllama: it still tends to pattern-match the "##"-header style of
+# the input and keep continuing it rather than switching to a new response.
+# generate() also passes format="json" to Ollama, which grammar-constrains
+# token sampling so the model structurally cannot emit free-text echo - that
+# constraint, not prompting alone, is what actually fixes the failure mode.
+SYSTEM_PREAMBLE = (
+    "You are SENTINEL's incident diagnosis assistant. Ground your diagnosis "
+    "ONLY in the runbook provided - never invent a root cause or action "
+    "that isn't in it. If the alert doesn't match the runbook well enough "
+    "to be confident, say so in root_cause instead of guessing. Respond "
+    "with a single JSON object and nothing else - no markdown, no commentary."
 )
 
 _ROOT_CAUSE_RE = re.compile(r"Root Cause:\s*(.+)", re.IGNORECASE)
@@ -24,9 +33,7 @@ def build_prompt(
         if deploys
         else "(no deploys in the lookback window)"
     )
-    return f"""{_SYSTEM_PREAMBLE}
-
-## Alert
+    return f"""## Alert
 metric: {alert.get('metric')}
 value: {alert.get('value')}
 mean baseline: {alert.get('mean')}
@@ -43,23 +50,48 @@ fired_at: {alert.get('fired_at')}
 ## Recent deploys
 {deploy_block}
 
-## Respond in exactly this format
-Root Cause: <one or two sentences, grounded in the runbook above>
-Recommended Action: <pulled from the runbook's recommended action, or "insufficient evidence" if you cannot ground one>
-Runbook Cited: {runbook.id}
+## Respond with exactly one JSON object, no other text
+{{"root_cause": "<one or two sentences, grounded in the runbook above>", "recommended_action": "<pulled from the runbook's recommended action, or \\"insufficient evidence\\" if you cannot ground one>", "runbook_cited": "{runbook.id}"}}
 """
 
 
 def parse_response(text: str) -> tuple[str | None, str | None, str | None]:
-    """Pull the three labeled fields back out of the LLM's plain-text
-    response. Returns (root_cause, recommended_action, cited_runbook_id),
-    with None for any field the model didn't produce in the expected shape
-    - callers fall back to the raw text rather than failing."""
+    """Parses the model's {root_cause, recommended_action, runbook_cited}
+    JSON response (the shape Ollama's format="json" grammar-constrains it
+    to). Falls back to the older labeled-line format (Root Cause: /
+    Recommended Action: / Runbook Cited:) for a model that ignores the JSON
+    instruction, then to None for anything else - callers fall back to the
+    raw text rather than failing."""
+    parsed = _parse_json_fields(text)
+    if parsed is not None:
+        return parsed
     return (
         _first_match(_ROOT_CAUSE_RE, text),
         _first_match(_ACTION_RE, text),
         _first_match(_CITED_RE, text),
     )
+
+
+def _parse_json_fields(text: str) -> tuple[str | None, str | None, str | None] | None:
+    try:
+        start, end = text.index("{"), text.rindex("}") + 1
+        data = json.loads(text[start:end])
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return (
+        _clean(data.get("root_cause")),
+        _clean(data.get("recommended_action")),
+        _clean(data.get("runbook_cited")),
+    )
+
+
+def _clean(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _first_match(pattern: re.Pattern, text: str) -> str | None:
