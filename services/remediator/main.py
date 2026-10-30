@@ -102,6 +102,15 @@ async def _poll_diagnosis_agent_forever() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if settings.slack_bot_token and settings.slack_channel:
+        try:
+            await slack_client.join_channel(settings.slack_channel)
+        except Exception:
+            logger.exception(
+                "failed to auto-join slack channel %s; a human may need to "
+                "/invite the bot manually",
+                settings.slack_channel,
+            )
     poll_task = asyncio.create_task(_poll_diagnosis_agent_forever())
     try:
         yield

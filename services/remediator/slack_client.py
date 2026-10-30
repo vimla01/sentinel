@@ -83,6 +83,45 @@ class SlackClient:
             {"channel": channel, "ts": ts, "text": text, "blocks": []},
         )
 
+    async def join_channel(self, channel: str) -> dict:
+        """Joins a public channel by name or ID via conversations.join, so the
+        bot never needs a human to run `/invite @bot` after a fresh channel
+        or workspace - requires the `channels:join` bot scope. Channel name
+        (e.g. "#sentinel-incidents") must be resolved to an ID first, since
+        conversations.join only accepts IDs."""
+        if not channel:
+            return {"ok": False, "skipped": True}
+        channel_id = channel
+        if channel.startswith("#"):
+            channel_id = await self._resolve_channel_id(channel.lstrip("#"))
+            if channel_id is None:
+                logger.warning(
+                    "could not resolve channel %s to an id; skipping auto-join",
+                    channel,
+                )
+                return {"ok": False, "skipped": True}
+        return await self._call("/api/conversations.join", {"channel": channel_id})
+
+    async def _resolve_channel_id(self, channel_name: str) -> str | None:
+        if not self._bot_token:
+            return None
+        cursor = ""
+        while True:
+            params = {"limit": 200, "types": "public_channel"}
+            if cursor:
+                params["cursor"] = cursor
+            response = await self._client.get("/api/conversations.list", params=params)
+            response.raise_for_status()
+            body = response.json()
+            if not body.get("ok"):
+                return None
+            for conv in body.get("channels", []):
+                if conv.get("name") == channel_name:
+                    return conv.get("id")
+            cursor = body.get("response_metadata", {}).get("next_cursor", "")
+            if not cursor:
+                return None
+
     async def post_message(
         self, channel: str, text: str, blocks: list | None = None
     ) -> dict:
