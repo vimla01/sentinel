@@ -15,6 +15,8 @@ spec:
       labels:
         app.kubernetes.io/name: diagnosis-agent
         app.kubernetes.io/part-of: sentinel
+      annotations:
+        sentinel/image-built-at: "2026-11-05T19:08:06Z"
     spec:
       serviceAccountName: sentinel-workload
       securityContext:
