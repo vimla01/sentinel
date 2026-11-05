@@ -7,6 +7,8 @@
 
 Self-healing infrastructure platform that predicts failures before they happen, diagnoses incidents with a local LLM, and remediates them automatically - with human approval for anything risky.
 
+**Demo:** [Watch the demo video](https://drive.google.com/file/d/1xjMnPHeJignwjidUpgg0d4y_vJMdk4V-/view?usp=sharing)
+
 ## Overview
 
 SENTINEL is an AI-powered SRE layer that sits on top of a Kubernetes platform. Instead of waiting for services to crash and alerting a human to dig through logs, SENTINEL watches metrics continuously, predicts failure before it occurs, pulls the relevant logs and deploy history, and asks a local LLM to diagnose the root cause, grounded in a library of real runbooks, not guesswork. Known-safe fixes are applied automatically; anything riskier is routed to a human for one-click approval.
