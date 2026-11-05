@@ -7,8 +7,8 @@ services:
     container_name: sentinel-jenkins
     user: "1000:${DOCKER_GID:-117}"
     ports:
-      - "8080:8080"
-      - "50000:50000"
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:50000:50000"
     environment:
       - JENKINS_OPTS=--httpPort=8080
       # Pipeline's SCM points at a local bind-mounted path (/workspace/sentinel), not a

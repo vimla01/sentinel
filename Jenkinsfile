@@ -22,7 +22,7 @@ pipeline {
                         sh "cp -R /workspace/sentinel/. ."
                     }
 
-                    env.GIT_SHORT_SHA = sh(returnStdout: true, script: 'git rev-parse --short HEAD 2>/dev/null || echo "39ec313"').trim()
+                    env.GIT_SHORT_SHA = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
                     echo "=========================================================="
                     echo "SENTINEL CI Pipeline (Stage A - Local Build)"
                     echo "Repository: SENTINEL"
